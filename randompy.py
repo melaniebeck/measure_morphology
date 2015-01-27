@@ -1,4 +1,5 @@
 # A random script for doing random things that need doing
+# Happy Birthday Jaybirdy. I miss you more than I can bear. bare? 
 
 import os
 import string
@@ -7,6 +8,7 @@ import numpy as np
 from astropy.table import Table
 from scipy.spatial import cKDTree
 from scipy.interpolate import interp1d
+from scipy.stats import nanmedian 
 from collections import OrderedDict, defaultdict
 from random import gauss
 import matplotlib.pyplot as plt
@@ -83,24 +85,8 @@ def selectnewsample():
 
     
 def plotpetrorad_largesample():
-    dat = Table.read('bigsample_mycatv3.fits')
+    dat = Table.read('bigsample_mycat_v10.fits')
     zest = Table.read('bigsample_zest.fits')
-    
-    # a few of the large sample just couldn't be found by SExtractor in my code
-    # mask them out of the ZEST sample for now
-    '''
-    zest['num']np.arange(1,len(zest)+1)
-
-    flagged = np.array([19, 21, 62, 356, 357, 361, 478])
-    idx = np.arange(len(zest))
-    mask = np.ones(idx.shape, dtype=bool)
-    mask[flagged] = False
-    
-    included = idx[mask]
-    excluded = idx[~mask]  
-   
-    zest = zest[included]
-    #'''
 
     zrad = zest['rpet']
     mrad = dat['rpet']
@@ -113,7 +99,7 @@ def plotpetrorad_largesample():
     plt.hist(zest['acs_mag_auto'], bins=40, normed=1)
     ax = plt.gca()
     ax.invert_xaxis()
-    plt.title('Magnitude distribution for 964 galaxies')
+    plt.title('Magnitude distribution for 971 galaxies')
     plt.xlabel('Magnitude F814')
     #plt.savefig('magdist_bigsample.png')
     #plt.show()
@@ -134,7 +120,7 @@ def plotpetrorad_largesample():
     plt.legend(loc='upper right')
     plt.xlabel('Radius [pixels]')
     
-    plt.savefig('petro_ratio_bigsample_v3.png')
+    #plt.savefig('petro_ratio_bigsample_v3.png')
     #plt.show()
     
     #exit()
@@ -143,7 +129,7 @@ def plotpetrorad_largesample():
     plt.figure()
     plt.subplot(2,1,1)
     plt.plot(zrad, mrad, 'ro', [0,200], [0,200], 'k--')
-    plt.title('PetroRad comparison 964 galaxies')
+    plt.title('Petrosian Radius')
     plt.xlabel('ZEST [pixels]')
     plt.ylabel('Mine [pixels]')
     
@@ -154,22 +140,20 @@ def plotpetrorad_largesample():
     plt.xlabel('Radius [pixels]')
     plt.ylabel('Mine/ZEST')
     
-       
+    '''
     subset = np.where(mrad/zrad < .5)
     i = 0
     for xy in zip(zrad[subset],mrad[subset]/zrad[subset]):
         plt.annotate(str(subset[0][i]), xy=xy)
         i += 1
     #'''
-    plt.savefig('petro_bigsample_label_v3.png')
-
-    print len(subset[0])
+    plt.savefig('rpet_bigsample.png')
     
-    #plt.show()
+    plt.show()
     plt.close()
-    #plt.clf()
     
     #exit()
+    '''
     # create a table with pertinent infos for the subset
     mr = mrad[subset[0]]
     ra = dat['ra'][subset[0]]
@@ -182,69 +166,269 @@ def plotpetrorad_largesample():
     bigtable.write('toolow_bigsample_v3.txt', format='ascii.fixed_width')
     
     exit()
-    
-    high = np.where(mrad/zrad >=1.3)
-    low = np.where(mrad/zrad <=0.7)
-    
-    totes = len(high[0])+len(low[0])
-    
-    ratio = float(totes)/len(mrad)*100.   
-    print ratio
-
-    #exit()
+    '''
 
 def plotasymmetry():
-    dat = Table.read('bigsample_mycatv5.fits')
+    dat1 = Table.read('bigsample_mycatv7.fits') 
+    dat2 = Table.read('bigsample_mycat_v10.fits') 
     zest = Table.read('bigsample_zest.fits')
-
-    zrad = zest['aa']
-    mrad = dat['asym'][:,0]-dat['asym'][:,1]
-
-    mu = np.nanmean(mrad/zrad)
-    sig = np.nanstd(mrad/zrad)
-
+    #pdb.set_trace()
+    za = zest['aa']
+    ma1 = dat1['asym']/2.    
+    ma2 = dat2['A']/2. 
+    '''
     plt.figure()
-    plt.hist(mrad, bins=20, range=[-.1,1.6])
-    plt.title('My Asymmetry')
-    plt.figure()
-    plt.hist(zrad, bins=20, range=[-.1, 1.])
-    plt.title('ZEST Asymmetry')
-    plt.show()
-
-    # Histogram of MRAD/ZRAD ratio with mean/sigma
-    plt.figure()
-    plt.hist(mrad/zrad, bins=100, range=[-10.,20.], color='blue')
-    #plt.plot([mu,mu], [0,1], lw=4)
-    #plt.axvline(x=mu, linewidth=3, color='k')
-    #plt.axvline(x=mu+sig, linewidth=3, color='k', linestyle='--')
-    #plt.axvline(x=mu-sig, linewidth=3, color='k', linestyle='--')
-    plt.legend(loc='upper right')
-    plt.xlabel('Asymmetry')
-    plt.savefig('asymmetry_bigsample_v1.png')
-
-    # My radius vs. ZEST radius and ratio
-    plt.figure()
-    plt.subplot(2,1,1)
-    plt.plot(zrad, mrad, 'ro', [0,2], [0,2], 'k--')
-    plt.title('Asymmetry comparison 971 galaxies')
+    plt.subplot(1,2,1)
+    plt.plot(za, ma1, 'ro', [-.2,.5], [-.2,.5], 'k')
+    plt.ylim(-0.3, .8)
+    plt.xlim(-.2, .5)
+    plt.axvline(x=0., linestyle='--', color='k')
+    plt.axhline(y=0., linestyle='--', color='k')
+    #plt.axvline(x=.2, linestyle='--', color='b')
+    #plt.axhline(y=.2, linestyle='--', color='b')
+    plt.title('Asym with 1.5*Rp')
     plt.xlabel('ZEST')
     plt.ylabel('Mine')
+    '''
+    #plt.subplot(1,2,2)
+    plt.plot(za, ma2, 'ro', [-.2,.5], [-.2,.5], 'k')
+    plt.axvline(x=0., linestyle='--', color='k')
+    plt.axhline(y=0., linestyle='--', color='k')
+    #plt.axvline(x=.2, linestyle='--', color='b')
+    #plt.axhline(y=.2, linestyle='--', color='b')
+    plt.ylim(-0.3, .8)
+    plt.xlim(-.2, .5)
+    plt.title('Asymmetry within 1 Petrosian radius')
+    plt.xlabel('ZEST')
+    plt.ylabel('Mine')
+    '''
+    subset = np.where((za >= 0.2) & (ma2 <= 0.2))
     
-    plt.subplot(2,1,2)
-    plt.plot(zrad, mrad/zrad, 'ro')
-    plt.plot([0,2], [1,1], 'k--')
-    plt.ylim([-.5, 200.])
-    #plt.yscale('log')
-    plt.xlabel('ZEST Asymmetry')
-    plt.ylabel('Mine/ZEST')
-    plt.savefig('asymmetry_ratio_bigsample_v1.png')
-    
-    #pdb.set_trace()
+    i = 0
+    for xy in zip(za[subset], ma2[subset]):
+        #print xy
+        plt.annotate( '%.4f' %dat2['med'][subset[0][i]], xy=xy)
+        i += 1
+    '''
     plt.show()
+    plt.savefig('asym_bigsample.png')
+    pdb.set_trace()
+
+    '''
+    delx, dely=[],[]
+    for idx, c in  enumerate(dat1['center']):
+        #pdb.set_trace()
+        delx.append(dat1['x'][idx]-dat1['center'][0][0])
+        dely.append(dat1['y'][idx]-dat1['center'][0][1])
+
+    delx = np.array(delx)
+    dely = np.array(dely)
+    #pdb.set_trace()
+    
+
+    msub = dat1[subset]
+    zsub = zest[subset]
+    #delx = delx[subset]
+    #dely = dely[subset]
+    zasym = zrad[subset]
+    zrpet = zest['rpet'][subset]
+    flag = zest['flagrpet'][subset]
+    bigtable = Table([msub['name'], mrad1[subset], zsub['aa'], msub['rpet'], zsub['rpet'], \
+                          zsub['flagrpet'], msub['e'], msub['theta']*180./pi], 
+                     names=('name', 'myasym', 'zestasym', 'myrpet', 'zestrpet', 'flag',  \
+                                'myelongation', 'mytheta'))
+    bigtable.write('asym_1rpet.txt', format='ascii.fixed_width')
+
+    f = open('asym_1rpet.sh', 'w+')
+    f.write('ds9 ')
+    for name in msub['name']: 
+        f.write('%s.fits[1] '%name)
+    f.close()
+    '''
+
+def plotconcentration():
+    dat1 = Table.read('bigsample_mycat_v10.fits') # circulur
+    dat2 = Table.read('bigsample_mycat_v9.fits') # elliptical
+    zest = Table.read('bigsample_zest.fits')
+    
+    myc1 = dat1['C'] # circular
+    myc2 = dat2['C'] # elliptical
+    zc = zest['cc']
+    '''
+    mavg = np.nanmean(myc)
+    mstd = np.nanstd(myc)
+    zavg = np.nanmean(zc)
+    zstd = np.nanstd(zc)
+    
+    print "my avg:", mavg, "my std:", mstd
+    print "ZEST avg:", zavg, "ZEST std:", zstd
+    '''
+    ratio1 = myc1/zc
+    ratio2 = myc2/zc
+    #ravg = np.nanmean(ratio)
+    #rstd = np.nanstd(ratio)
+    '''
+    plt.figure()
+    #plt.hist(myc, bins=20, range=(1,5), alpha=0.5)
+    #plt.hist(zc, bins=20, range=(1,5), color='r', alpha=0.5)
+    plt.hist(myc/zc, bins=25, range=(0.5,1.5))
+    plt.axvline(x=ravg, color='k', linewidth=3)
+    plt.axvline(x=ravg+rstd, color='k', linestyle='--')
+    plt.axvline(x=ravg-rstd, color='k', linestyle='--')
+    plt.title('My C / ZEST C')
+    plt.savefig('Cratio_hist_circ.png')
+    plt.close()
+    '''
+    plt.figure()
+    plt.subplot(2,2,1)
+    plt.plot(zc, myc1, 'ro', [1,5], [1,5], 'k--')
+    plt.ylim(1., 6.)
+    plt.xlabel('ZEST C')
+    plt.ylabel('My C')
+    plt.title('Concentration using Circular Annuli')
+
+    plt.subplot(2,2,2)
+    plt.plot(zc, myc2, 'ro', [1,5], [1,5], 'k--')
+    plt.ylim(1.0, 6.)
+    plt.xlabel('ZEST C')
+    plt.ylabel('My C')
+    plt.title('Concentration using Elliptical Annuli')
+
+    plt.subplot(2,2,3)
+    plt.plot(zc, ratio1, 'bo')
+    plt.axhline(y=1.0, linestyle='--', color='k')
+    plt.ylim(.4, 2.)
+    plt.xlabel('ZEST')
+    plt.ylabel('My C / ZEST C')
+
+    plt.subplot(2,2,4)
+    plt.plot(zc, ratio2, 'bo')
+    plt.axhline(y=1.0, linestyle='--', color='k')
+    plt.ylim(.4, 2.)
+    plt.xlabel('ZEST C')
+    plt.ylabel('My C / ZEST C')    
+    '''
+    toohigh = np.where( ratio > ravg+2*rstd )
+    i = 0
+    for xy in zip(zc[toohigh], ratio[toohigh]):
+        #print xy
+        plt.annotate( '%i' %(toohigh[0][i]+1), xy=xy)
+        i += 1
+    toolow = np.where( ratio < ravg-rstd )
+    i = 0
+    for xy in zip(zc[toolow], ratio[toolow]):
+        #print xy
+        plt.annotate( '%i' %(toolow[0][i]+1), xy=xy)
+        i += 1
+    #'''
+    plt.savefig('C_compare_apshape_v2.png')
+    plt.show()
+    plt.close()
 
     exit()
 
+    mdev = dat[toohigh]
+    zdev = zest[toohigh]
+    bigtable = Table([mdev['name'], mdev['C'], zdev['cc'], mdev['rpet'], \
+                          zdev['rpet'], zdev['flagrpet']],\
+                         names=('name', 'myC', 'zestC', 'myrpet', 'zestrpet', 'flag'))
+    bigtable.write('concentration_toohigh.txt', format='ascii.fixed_width')
+
+    f = open('concentration_toohigh.sh', 'w+')
+    f.write('ds9 ')
+    for name in mdev['name']: 
+        f.write('output/%s.fits[1] '%name)
+    f.write('-single -lock frame image -scale zscale -zoom to fit')
+    f.write('-single -lock scale yes')
+    f.close() 
+
+    mdev = dat[toolow]
+    zdev = zest[toolow]
+    bigtable = Table([mdev['name'], mdev['C'], zdev['cc'], mdev['rpet'], \
+                          zdev['rpet'], zdev['flagrpet']],\
+                         names=('name', 'myC', 'zestC', 'myrpet', 'zestrpet', 'flag'))
+    bigtable.write('concentration_toolow.txt', format='ascii.fixed_width')
+
+    f = open('concentration_toolow.sh', 'w+')
+    f.write('ds9 ')
+    for name in mdev['name']: 
+        f.write('output/%s.fits[1] '%name)
+    f.write('-single -lock frame image -scale zscale -zoom to fit')
+    f.write('-single -lock scale yes')
+    f.close()
+
+    #pdb.set_trace()
+
+def testbackground():
+    dat = Table.read('bigsample_mycat_v9.fits')
+    
+    #pdb.set_trace()
+    plt.figure()
+    plt.hist(dat['med'], bins=20, range=(-0.001, 0.001))
+    plt.title('Background median')
+    plt.savefig('bkgmed_hist.png')
+    plt.figure()
+    plt.hist(dat['rms'], bins=20, range=(0.001, 0.006))
+    plt.title('Background RMS')
+    plt.savefig('bkgrms_hist.png')
+    #plt.show()
+
+    rmscut= np.where(dat['rms'] < 0.005)
+    ra, dec, rms = dat['ra'][rmscut], dat['dec'][rmscut], dat['rms'][rmscut]
+    fig,ax = plt.subplots(1,1, figsize=(10,6))
+    im = ax.scatter(ra, dec, s=50, c=rms, alpha=.4, cmap=plt.cm.RdYlBu)
+    ax.set_xlabel('RA [degrees]')
+    ax.set_ylabel('Dec [degrees]')
+    ax.set_ylim(1.55, 2.9)
+    ax.set_xlim(149.55,150.8 )
+    plt.colorbar(im,ax=ax)
+    #fig.show()
+    fig.savefig('position_rms.png')
+    pdb.set_trace()
+
+def plotgini(zestdata, mydata):
+    zest = fits.getdata(zestdata)
+    dat = fits.getdata(mydata)
+
+    zg = zest['gg']
+    mg = dat['G']
+    
+    zgwut = zg[mg > 1.]
+    wut = mg[mg > 1.]
+    #pdb.set_trace()
+
+    plt.figure()
+    plt.plot(zg, mg, 'ro', [0,1], [0,1], 'k--', zgwut, wut, 'bo')
+    plt.ylim(0., 6.)
+    plt.xlim(.2, .8)
+    plt.xlabel('ZEST Gini')
+    plt.ylabel('My Gini')
+    plt.savefig('compareGini_bad.png')
+
+    plt.figure()
+    plt.hist(mg/zg, bins=60, range=(0., 4.5))
+    plt.title('My Gini / ZEST Gini')
+    #plt.hist(mg, bins=40, range=(0,1), alpha=0.5)
+    #plt.hist(zg, bins=20, range=(0,1), alpha=0.5)
+    plt.savefig('histGini_bad.png')
+
+    plt.show()
+    #pdb.set_trace()
+    '''
+    toohigh = dat[np.where(dat.G > 1.)]
+    f = open('Gtoohigh.sh', 'w+')
+    f.write('ds9 ')
+    for name in toohigh['name']: 
+        f.write('output/%s.fits[1] '%name)
+    f.write('-single -lock frame image -scale zscale -zoom to fit')
+    f.write('-single -lock scale yes')
+    f.close
+    '''
+    
 def main():
+
+    zestdata = 'bigsample_zest.fits'
+    dataset = 'bigsample_mycat_v11_wG.fits'
 
     #comparecatalogs()
     #plotzestcassatamine()
@@ -252,69 +436,20 @@ def main():
     #selectnewsample()
     #plotpetrorad_largesample()
     
-    plotasymmetry()
+    #plotasymmetry()
+    #plotconcentration()
 
+    #testbackground()
+    
+    plotgini(zestdata, dataset)
+         
     #pdb.set_trace()
     
-    
+    exit()
     
 if __name__ == '__main__':
     main()
-    
-    '''   
-    # construct a new table? 
-    c1 = fits.Column(name='RA', format='D10', array=infos['ra'])
-    c2 = fits.Column(name='DEC', format='D10', array=infos['dec'])
-    c3 = fits.Column(name='A_IMAGE', format='D10', array=infos['a'])
-    c4 = fits.Column(name='B_IMAGE', format='D10', array=infos['b'])
-    c5 = fits.Column(name='THETA', format='D10', array=infos['theta'])
-    c6 = fits.Column(name='ELONGATION', format='D10', array=infos['e'])
-    c7 = fits.Column(name='PETRO_RAD', format='D10', array=infos['rpet'])
-       
-    tbhdu = fits.BinTableHDU.from_columns([c1,c2,c3,c4,c5,c6,c7])
-    tbhdu.writeto('.fits', clobber=True)                                
 
-    #for gal in galaxies:
-    #    rpet.append(gal.rpet) 
-
-#    with open('prad2.txt','w') as f:
-#        for thing in rpet:
-#            f.write("%f\n" %thing)
-    #'''
-    
-# construct a dictionary? 
-#infos = dict( zip(['ra', 'dec', 'a', 'b', 'theta', 'elongation', 'petro_rad'],
-#                 [g.ra, g.dec, g.a, g.b, g.theta, g.e, g.rpet]) for g in galaxies)  
-    
-# for now let's explore the catalog of ZEST classified galaxies
-# to determine which ones we should make postage stamps of
-
-#f = open('IpacTableFromSource.tbl',r)
-#mytable = Table.read('IpacTableFromSource.tbl',format='ascii.ipac')
-
-#smalltable = mytable[0:10]
-#smalltable.write('test.tex',format='ascii.latex
-#print mytable.colnames
-'''
-bright = mytable[mytable['acs_mag_auto'] < 20.]
-bright = bright[bright['acs_mag_auto'] > 19.95]
-bright = bright[bright['acs_clean'] == 1.]
-bright = bright[bright['acs_mu_class'] == 1.]
-'''
-#print len(bright)
-#print min(bright['aa']), max(bright['aa'])
-
-#pdb.set_trace()
-
-#bright.write('bright_gals.fits')#,format='ascii.ipac')
-
-#rpet =  bright['rpet']
-
-#print rpet
-
-# I've created some cutouts to begin working on calculating their asymmetry
-# These cutouts are galaxies that have previously been classified by ZEST
-# and have all parameters measured for comparison. 
 
 '''
 test = np.genfromtxt(r'testgal17_mel_prof_IDL2.dat')

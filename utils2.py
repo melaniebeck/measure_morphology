@@ -74,7 +74,7 @@ def clean_frame(img_name): #, configs
     catnames = ['output/cB_'+fitsname, 'output/cF_'+fitsname]
     segnames = ['output/sB_'+fitsname, 'output/sF_'+fitsname]
     configs = ['config_bright.sex','config_faint.sex']
-    outname = 'output/f_'+fitsname
+    outname = 'output/datacube/f_'+fitsname
     
     for config, cat, seg in zip(configs, catnames, segnames):
         run_sextractor(img_name, cat, seg, config)
@@ -179,7 +179,7 @@ def clean_frame(img_name): #, configs
     newthing.writeto(outname, output_verify='silentfix', clobber=True)
     
     # clean up directory
-    os.system("rm output/[c,s,a]*.fits")
+    os.system("rm output/datacube/[c,s,a]*.fits")
 
     return 0
 
@@ -279,10 +279,10 @@ def generate_deltas(center, shiftsize, shift):
         for h in increments:
             #pdb.set_trace()
             y = center[1]+shift[1]+h
-            points.append([round(x,7),round(y,7)])
-            deltas.append([round(s+shift[0],7),round(h+shift[1],7)])
+            points.append((round(x,6),round(y,6)))
+            deltas.append([round(s+shift[0],6),round(h+shift[1],6)])
     
-    return np.array(deltas),np.array(points)
+    return np.array(deltas), points
 
 def scale(galmask, imgsize):
     # determine the scale of the galaxy to the background
