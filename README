@@ -1,0 +1,25 @@
+Various catalogs and what they contain:
+
+
+1. bigsample_mycatv6.fits 
+	contains: rpet, asymmetry (calculated my way with 1.5*rpet)
+
+2. bigsample_mycatv7.fits
+	contains: rpet, asymmetry (calculated CS's way with 1.5*rpet)
+
+3. bigsample_mycat_1rpet_v8.fits
+	contains: rpet, asymmetry (calculated CS's way with 1*rpet)
+
+4. bigsample_mycat_v9.fits
+	contains: rpet, asymmetry (as in 3), concentration (calculated with elliptical annuli)
+
+5. bigsample_mycat_v10.fits
+	contains: rpet, asymmetry (as in 3), concentration (calculated with circular annuli)
+
+6. bigsample_mycat_v11_wG.fits
+	contains: rpet and Gini only but Gini is all kinds of messed up
+
+7. bigsample_mycat_v12.fits
+	contains: rpet and Gini only and Gini is good!
+
+
