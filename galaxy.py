@@ -14,6 +14,7 @@ from scipy.interpolate import interp1d
 from astropy.table import Table
 from collections import defaultdict
 from random import gauss
+from skimage import measure
 from photutils import aperture_photometry, EllipticalAnnulus, \
                               EllipticalAperture, CircularAnnulus, \
                               CircularAperture
@@ -55,15 +56,15 @@ class Galaxy(object):
         if not np.isnan(self.rpet):
             #aperture = EllipticalAperture(imgcenter, 1.5*self.rpet, 
             #                              1.5*self.rpet/self.e, self.theta)                            
-            #self.A, self.center = self.get_asymmetry(clean_dat, segmap)
+            #self.A, self.ac = self.get_asymmetry(clean_dat, segmap)
             #self.C = self.get_concentration(clean_dat)
-            self.G, self.Gflag = self.get_gini(clean_dat)
-            #self.M20 = self.get_m20(clean_dat, aperture)
+            #self.G, self.Gflag = self.get_gini(clean_dat)
+            self.M20, self.mc = self.get_m20(clean_dat)
         else:
-            #self.A, self.center = np.nan, (self.x, self.y)
+            #self.A, self.ac = np.nan, (self.x, self.y)
             #self.C = np.nan
-            self.G, self.Gflag = np.nan, 1
-            #self.M20 = np.nan
+            #self.G, self.Gflag = np.nan, 1
+            self.M20, self.mc = np.nan, (self.x, self.y)
         self.elipt = cat['ELLIPTICITY']            
 
         #dir(self) in cmd line to see all the hidden shits
@@ -219,7 +220,6 @@ class Galaxy(object):
         galcenter = np.array([self.x, self.y])
         imgcenter = np.array([clean_dat.shape[0]/2., clean_dat.shape[1]/2.])
         delta = imgcenter - galcenter
-        #print delta
 
         low = round(imgcenter[0] - 2*self.rpet)
         high = round(imgcenter[0] + 2*self.rpet)
@@ -353,53 +353,6 @@ class Galaxy(object):
         plt.close()
         return 0.
 
-    def get_gini(self, clean_dat):
-        '''
-        Need all pixels associated with a galaxy -- use my aperture thing? 
-        1. All pixels within 1 Rp
-        2. All pixels above the mean SB at 1 Rp
-        Gonna do 1. for  now but want to try 2. as well
-        '''
-        print "calculating Gini..."
-
-        gflag = 0
-
-        # create aperture at center of galaxy
-        ap = utils2.EllipticalAperture( (self.x, self.y), self.rpet, \
-                                            self.rpet/self.e, self.theta, \
-                                            clean_dat)
-
-        # create galaxy and background masks from aperture
-        #apmask = ap.aper.astype('float')
-        #bkgmask = np.logical_not(apmask).astype('float')
-        
-        pixels = ap.aper * clean_dat
-        galpix = pixels[pixels > 0.]
-        # sort galpixels
-        galpix_sorted = sorted(galpix)
-        # calculate the mean
-        xbar = np.mean(galpix_sorted)
-        n = len(galpix_sorted)
-
-        #calculate G
-        gsum = [2*i-n-1 for i, p in enumerate(galpix_sorted)]
-        g = 1/(xbar*n*(n-1))*np.dot(gsum, galpix_sorted)
-
-        #pdb.set_trace()
-
-        plt.figure()
-        imgplot = plt.imshow(pixels[200:300, 200:300], cmap='gray_r', origin='lower')
-        imgplot.set_clim(-0.009, 0.022)
-        plt.savefig('output/aperture/'+self.name+'_aperG.png')
-        plt.close()
-
-        #pdb.set_trace()
-
-        if g > 1:
-            gflag = 1
-
-        return g, gflag
-            
     def get_concentration(self, clean_dat):#aper_sums, aper_radii, rpet
         '''
         To calculate the conctration we need to find the radius 
@@ -487,11 +440,167 @@ class Galaxy(object):
         #pdb.set_trace()
         return  5*np.log10(r80/r20)
         
-    def get_m20(self, clean_dat, ap):
-        return 0.
+    def get_gini(self, clean_dat):
+        '''
+        Need all pixels associated with a galaxy -- use my aperture thing? 
+        1. All pixels within 1 Rp
+        2. All pixels above the mean SB at 1 Rp
+        Gonna do 1. for  now but want to try 2. as well
+        '''
+        print "calculating Gini..."
+
+        gflag = 0
+
+        # create aperture at center of galaxy
+        ap = utils2.EllipticalAperture( (self.x, self.y), self.rpet, \
+                                            self.rpet/self.e, self.theta, \
+                                            clean_dat)
+
+        # create galaxy and background masks from aperture
+        #apmask = ap.aper.astype('float')
+        #bkgmask = np.logical_not(apmask).astype('float')
         
-    def show(self, clean_dat):
-        return 0.
+        pixels = ap.aper * clean_dat
+        galpix = pixels[pixels > 0.]
+        # sort galpixels
+        galpix_sorted = sorted(galpix)
+        # calculate the mean
+        xbar = np.mean(galpix_sorted)
+        n = len(galpix_sorted)
+
+        #calculate G
+        gsum = [2*i-n-1 for i, p in enumerate(galpix_sorted)]
+        g = 1/(xbar*n*(n-1))*np.dot(gsum, galpix_sorted)
+
+        #pdb.set_trace()
+
+        plt.figure()
+        imgplot = plt.imshow(pixels[200:300, 200:300], cmap='gray_r', origin='lower')
+        imgplot.set_clim(-0.009, 0.022)
+        plt.savefig('output/aperture/'+self.name+'_aperG.png')
+        plt.close()
+
+        #pdb.set_trace()
+
+        if g > 1:
+            gflag = 1
+
+        return g, gflag
+            
+    def get_m20(self, clean_dat):
+
+        print "Calculating M20..."
+        
+        shape = clean_dat.shape
+        imgcenter = np.array([shape[0]/2., shape[1]/2.])
+        galcenter = np.array([self.x, self.y])
+        delta = imgcenter - galcenter
+
+        # create an array that has the pixel elements as the array values
+        x, y = np.ogrid[:clean_dat.shape[0], :clean_dat.shape[1]]
+        dist = (x-imgcenter[0])*(x-imgcenter[0]) + (y-imgcenter[1])*(y-imgcenter[1])
+
+
+        # create aperture at center of galaxy (mask)
+        ap = utils2.EllipticalAperture(imgcenter, self.rpet, \
+                                            self.rpet/self.e, self.theta, \
+                                            clean_dat)
+
+        mtots = defaultdict(list)
+        prior_points = []
+       
+        #  minimize the galaxy asymmetry
+        while True:
+            mm = []
+            deltas, points = utils2.generate_deltas(imgcenter, .3, delta)
+
+            for d, p in zip(deltas, points): 
+                # if the point already exists in the dictionary... 
+                if p not in mtots: 
+                    # shift the current galcenter to the center of the image
+                    shifted = sp_interp.shift(clean_dat, d)
+
+                    # apply the mask
+                    galpix = ap.aper*shifted
+
+                    # calculate mtot for this location
+                    mtot = np.sum(galpix*dist)
+
+                    # create an array of mtots ... 
+                    mm.append(mtot)
+
+                    # ... and a dictionary that maps each mtot to a 
+                    # point on the image grid
+                    mtots[p].append(mtot)
+
+                # ...otherwise just take the value that's already in the dictionary 
+                else:
+                    mm.append(mtots[p][0])
+
+            # if the mtot found at the original center 
+            # (first delta in deltas) is the minimum, we're done!
+            if mm[0] == np.min(mm):
+                center = imgcenter - deltas[0]
+                Mtot = mm[0] 
+                break
+            else:
+                minloc = np.where(mm == np.min(mm))[0]
+                delta = deltas[minloc[0]]
+                prior_points = list(points)
+
+        # Once we have a minimized mtot and the galcenter that minimizes it
+        # we can calculate M20!
+
+        # create aperture/dist map at center that minimizes Mtot
+        m20_ap = utils2.EllipticalAperture(center, self.rpet, \
+                                            self.rpet/self.e, self.theta, \
+                                            clean_dat)
+        m20dist = (x-center[0])*(x-center[0]) + (y-center[1])*(y-center[1])
+
+        # mask out the pixels belonging to the galaxy based on this aperture
+        pixels = m20_ap.aper * clean_dat
+        galpix = pixels[pixels > 0.]
+        m20dist_pix = m20dist[pixels > 0.]
+
+        # sort m20dist_pix based on the rank order of galpix
+        m20dist_sorted = [x for y, x, in sorted(zip(galpix, m20dist_pix), reverse=True)]
+        galpix_sorted = sorted(galpix, reverse=True)
+
+        # compute 0.2 * ftot
+        ftot20 = 0.2*np.sum(galpix_sorted)
+
+        # compute the cumulative sum of galpix_sorted -- 
+        fcumsum = np.cumsum(galpix_sorted)
+
+        # find where fcumsum is less than ftot20 -- 
+        # the elements in this array are those which will be used to compute M20
+        m20_pixels = np.where(fcumsum < ftot20)
+        
+        m20_galpix = np.array(galpix_sorted[0:np.max(m20_pixels[0])])
+        m20_distpix = np.array(m20dist_sorted[0:np.max(m20_pixels[0])])
+
+        M20 = np.log10(np.sum(m20_galpix*m20_distpix)/Mtot)
+
+        fig, ax = plt.subplots()
+        
+        imgplot = ax.imshow(clean_dat, cmap='gray_r')
+        imgplot.set_clim(-0.01, 0.03)
+
+        m20_ap2 = EllipticalAperture(center, self.rpet, \
+                                            self.rpet/self.e, self.theta)
+        contours = measure.find_contours(pixels,m20_galpix.min())
+        for n, contour in enumerate(contours):
+            ax.plot(contour[:,1], contour[:,0], linewidth=2)
+        m20_ap2.plot()
+        plt.plot(center[0], center[1], 'r+', mew=2, ms=10)
+        ax.set_xlim(shape[0]/2.-3*self.rpet, shape[0]/2.+3*self.rpet)
+        ax.set_ylim(shape[1]/2.-3*self.rpet, shape[1]/2.+3*self.rpet)
+        plt.savefig('output/m20/'+self.name+'_m20.pdf')
+        #plt.show()
+        plt.close()
+        
+        return M20, center
+
 
 
 ####################### main ############################

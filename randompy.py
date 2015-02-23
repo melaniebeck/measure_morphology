@@ -412,23 +412,71 @@ def plotgini(zestdata, mydata):
     #plt.hist(zg, bins=20, range=(0,1), alpha=0.5)
     plt.savefig('histGini_bad.png')
 
-    plt.show()
+    #plt.show()
     #pdb.set_trace()
-    '''
-    toohigh = dat[np.where(dat.G > 1.)]
-    f = open('Gtoohigh.sh', 'w+')
+
+    #'''
+    ratio = mg/zg
+    sample_b = dat[np.where(ratio > 1.15)]
+    sample_s = dat[np.where(ratio < 0.9)]
+    f = open('Gtest_b.sh', 'w+')
     f.write('ds9 ')
-    for name in toohigh['name']: 
-        f.write('output/%s.fits[1] '%name)
+    for name in sample_b['name']: 
+        f.write('output/datacube/%s.fits[1] '%name)
     f.write('-single -lock frame image -scale zscale -zoom to fit')
-    f.write('-single -lock scale yes')
     f.close
-    '''
+    f = open('Gtest_s.sh', 'w+')
+    f.write('ds9 ')
+    for name in sample_s['name']: 
+        f.write('output/datacube/%s.fits[1] '%name)
+    f.write('-single -lock frame image -scale zscale -zoom to fit')
+    f.close
+    #'''
+
+def plotM20(zestdata, dataset):
+    zest = fits.getdata(zestdata)
+    dat = fits.getdata(dataset)
+
+    #pdb.set_trace()
+
+    zm = zest['m20']
+    mm = dat['M20']
+
+    plt.figure()
+    plt.plot(zm, mm, 'ro', [-3,0], [-3,0])
+    plt.title("M20 comparison between ZEST and mine")
+    plt.xlabel('ZEST M20')
+    plt.ylabel('My M20')
+    plt.savefig('M20_test.png')
+
+    plt.figure()
+    plt.plot(zm, mm/zm, 'ro')
+    plt.axhline(y=1., ls='--')
+    plt.savefig('M20_ratio.png')
+    #plt.show()
+
+    ratio = mm/zm
+
+    #mtest = dat[mm > -0.5]
+    mtest = dat[ratio < 0.5]
+    f = open('M20_bad2.sh', 'w+')
+    f.write('ds9 ')
+    for name in mtest['name']:
+        f.write('output/datacube/%s.fits[1] '%name)
+    f.write('-single -lock frame image -scale zscale -zoom to fit')
+    f.close()
+
+    f = open('M20_bad_cont2.sh', 'w+')
+    for name in mtest['name']:
+        f.write('evince output/m20/%s_m20.pdf \n' %name)
+    f.close()
+
+    #pdb.set_trace()
     
 def main():
 
     zestdata = 'bigsample_zest.fits'
-    dataset = 'bigsample_mycat_v11_wG.fits'
+    dataset = 'bigsample_mycat_v13.fits'
 
     #comparecatalogs()
     #plotzestcassatamine()
@@ -441,7 +489,9 @@ def main():
 
     #testbackground()
     
-    plotgini(zestdata, dataset)
+    #plotgini(zestdata, dataset)
+
+    plotM20(zestdata, dataset)
          
     #pdb.set_trace()
     

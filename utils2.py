@@ -238,7 +238,8 @@ class EllipticalAperture(object):
             
         ellipse1 = np.array([u0/self.a**2 + v0/self.b**2 for u0, v0 in zip(u, v)])
 
-        mask = np.array([True if ellipse1[x] <= 1 else False for x in np.ndindex(ellipse1.shape)])
+        mask = np.array([True if ellipse1[x] <= 1 else False \
+                         for x in np.ndindex(ellipse1.shape)])
         mask = mask.reshape(self.data.shape)
 
         '''
@@ -308,6 +309,41 @@ def measure_asymmetry(data, galmask, bkgmask, shift, scale):
     bkgasym = np.sum(np.abs(bkgpix - bkgpixrot))*scale/denom
     
     return galasym-bkgasym, bkgasym
+
+
+def plot2d(data, cmap='gray_r', **kwargs):
+    
+    #if datax.ndim != datay.ndim: 
+    #    print "data set sizes don't match!"
+    #    return 0
+
+    #num = np.arange(0, datax.ndim, 1)
+
+    #f, axarr = plt.subplots(datax.ndim)
+    #for n in num: 
+    #    axarr[n].plot(datax[n], datay[n])
+    #    axarr[n].set_title
+
+    for name, value in kwargs.items(): 
+        print "%s = %f" %(name, value)
+    
+    plt.figure()
+    plt.imgshow(kwargs['img'], cmap=kwargs['cmap'] )
+    
+
+def hist2d(data, *args, **kwargs):
+    if datax.ndim != datay.ndim: 
+        print "data set sizes don't match!"
+        return 0
+
+    num = np.arange(0, datax.ndim, 1)
+
+    f, axarr = plt.subplots(datax.ndim)
+    for n in num: 
+        axarr[n].plot(datax[n], datay[n])
+        axarr[n].set_title    
+
+
 
 def main():
     '''
