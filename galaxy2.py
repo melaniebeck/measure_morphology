@@ -12,8 +12,11 @@ from math import pi
 from scipy.interpolate import interp1d
 from astropy.table import Table
 from collections import defaultdict
+from random import gauss
 from photutils import aperture_photometry, EllipticalAnnulus, \
                               EllipticalAperture
+import scipy.ndimage.interpolation as sp_interp
+#import scipy.ndimage.interpolation.rotate as sp.rotate
 import utils2
 
 class Galaxy(object):
@@ -27,6 +30,7 @@ class Galaxy(object):
         #   SE catalog          hdulist[4]
 
         clean_dat = hdulist[1].data
+        segmap = hdulist[3].data
         cat = hdulist[4].data[hdulist[4].header['SECATIDX']]
         
         name = os.path.basename(filename)
@@ -47,10 +51,11 @@ class Galaxy(object):
         # initialize morphological parameters
         self.rpet, self.rpetflag = self.get_petro(clean_dat)
         imgcenter = [clean_dat.shape[0]/2, clean_dat.shape[1]/2]
+
         if not np.isnan(self.rpet):
             aperture = EllipticalAperture(imgcenter, 1.5*self.rpet, 
                                           1.5*self.rpet/self.e, self.theta)                            
-            self.asym, self.center = self.get_asymmetry(clean_dat, aperture)
+            self.asym, self.center = self.get_asymmetry(clean_dat, aperture, segmap)
             #self.gini = self.get_gini(clean_dat, aperture)
             #self.conc = self.get_concentration(clean_dat, aperture)
             #self.m20 = self.get_m20(clean_dat, aperture)
@@ -194,127 +199,186 @@ class Galaxy(object):
         return 0
         
         
-    def get_asymmetry(self, clean_dat, ap):
-        galcenter = np.array([self.x, self.y])
-        imgcenter = np.array([clean_dat.shape[0]/2., clean_dat.shape[1]/2.])
-        '''
-        # create aperture at center of image
-        ap1 = utils2.EllipticalAperture( imgcenter, 1.5*self.rpet, 
-                                         1.5*self.rpet/self.e, self.theta, clean_dat)
-        # create galaxy and background masks from aperture
-        apmask = ap1.aper.astype('float')
-        bkgmask = np.logical_not(apmask).astype('float')
-        scale = utils2.scale(apmask, clean_dat.shape)
+    def get_asymmetry(self, clean_dat, ap, segmap):
+        ''' 
+        In this one, we're doing it my way
         #'''
 
-        scale = ap.area()/(clean_dat.shape[0]*clean_dat.shape[1]-ap.area())
+        galcenter = np.array([self.x, self.y])
+        imgcenter = np.array([clean_dat.shape[0]/2., clean_dat.shape[1]/2.])
         delta = imgcenter - galcenter
- 
+
+        # to look at how shift works or to re-verify that I did it right...
+        #shift_test()
+
+        scale = ap.area()/(clean_dat.shape[0]*clean_dat.shape[1]-ap.area())
+        asyms = defaultdict(list)
         prior_points = []
-        asym = np.zeros((9,2))
+        bkgmin = 100.
 
-        counter = 0
         while True:
-            # generate shifts from initial pixel (delta) to 8 surrounding "pixels"
-            deltas, points = utils2.generate_deltas(imgcenter, .2, delta)
-            #print "new points that *should* match with rotated asym:\n", np.array(points)
-            if counter == 0:
-                indexes = [0,1,2,3,4,5,6,7,8]
-            else:
-                # find which values of points and asym were calculated on the prior run
-                #for p in points:
-                for a,pp in prior_run.iteritems():
-                    if pp not in points:
-                        print pp, a
-                        newdata = utils2.shift_image(clean_dat, 
-                                                     deltas[idx][1], deltas[idx][0])
-                        image = np.abs(newdata-np.rot90(newdata,2))
-                        numerator = aperture_photometry(image, ap, method='exact')
-                        denominator = aperture_photometry(newdata, ap, method='exact')
-                        n, d = numerator['aperture_sum'], denominator['aperture_sum']
-                        bkgasym = ((np.sum(image) - n)/d)*scale
-                        asym = n/d-bkgasym, bkgasym
-                        pdb.set_trace()
-                #indexes = [i for i, item in enumerate(points) if item not in prior_points]
+            '''
+            this loop creates two things:
+            1. a dictionary that continuously grows in size where each key is a 
+               point on the image grid  and an associated asymmetry value 
+            2. a list of asymmetry values which will always contain only 9 values.
+               these 9 values are the asymmetries for that particular run. the first 
+               value in this list will always be the "central" point of the current
+               3x3 grid being tested
+            '''
+            # deltas is a np.array of lists
+            # points is a list of tuples
+            
+            ba = []
+            ga = []
+            deltas, points = utils2.generate_deltas(imgcenter, .3, delta)
 
-            print indexes
-            pdb.set_trace()
-            # find asymmetry in the new set of "pixels" -- need to optimize this!!!
-            #for idx, d in enumerate(deltas):
-            for idx in indexes: 
-                # using my codez
-                # measure the asymmetry for 9 locations at and around the original delta
-                #asym[idx] = utils2.measure_asymmetry(clean_dat, apmask, bkgmask, d, scale)
+            for d, p in zip(deltas, points): 
+                # if the point already exists in the dictionary, don't run asym codes!
+                if p not in asyms: 
+                    # Doing it my way -------->
+                    newdata = sp_interp.shift(clean_dat, d)
+                    rotdata = sp_interp.rotate(newdata, 180.)
+                    residual = np.abs(newdata-rotdata)
+                    numerator = aperture_photometry(residual, ap)
+                    denominator = aperture_photometry(np.abs(newdata), ap)
+                    num, den = numerator['aperture_sum'], denominator['aperture_sum']
 
-                print deltas[idx]
-                # one way of doing it using photutils
-                #newdata = utils2.shift_image(clean_dat, d[1], d[0])
-                newdata = utils2.shift_image(clean_dat, deltas[idx][1], deltas[idx][0])
-                image = np.abs(newdata-np.rot90(newdata,2))
-                numerator = aperture_photometry(image, ap, method='exact')
-                denominator = aperture_photometry(newdata, ap, method='exact')
-                n, d = numerator['aperture_sum'], denominator['aperture_sum']
-                bkgasym = ((np.sum(image) - n)/d)*scale
-               
-                asym[idx] = n/d-bkgasym, bkgasym
- 
-            minloc = np.where(asym[:,0] == asym[:,0].min())[0]
-            minasym = asym[minloc[0]]
-            mindelta = deltas[minloc[0]]
+                    bkgasym = float(((np.sum(residual) - num)/den)*scale)
+                    galasym = float(num/den)
 
-            print minloc #, mindelta
+                    asym = float(num/den - bkgasym)
 
-            # if the asymmetry found at the original center is the minimum, we're done
-            if asym[0,0] == asym[:,0].min():
-                center = imgcenter - mindelta
-                asymmetry = minasym
-                self.asym_plot(clean_dat, mindelta, center, ap)
-                pdb.set_trace()
-                return asymmetry, center
+                    # create an array of asyms ... 
+                    ba.append(bkgasym)
+                    ga.append(galasym)
+                    # ... and a dictionary that maps each asym to a point on the image grid
+                    asyms[p].append([galasym, bkgasym])
 
-            # if not, repeat the process until we find the asymmetry minimum
-            else:
-                delta = mindelta
-                center = points[minloc[0]]
-                prior_run = dict((a,p) for a, p in zip(asym[:,0], points))
+                # just take the value that's already in the dictionary for that point
+                else:
+                    ga.append(asyms[p][0][0])
+                    ba.append(asyms[p][0][1])
+            
+            # want to find the min background asymmetry, regardless of which position it's at
+            bb = ba[np.where(ba == np.min(ba))[0]]
+            if bb < bkgmin:
+                bkgmin = bb
+
+            # if the asymmetry found at the original center (first delta in deltas) 
+            # is the minimum, we're done
+            if ga[0] == np.min(ga):
+                center = imgcenter - deltas[0]
+                self.asym_plot(newdata, residual, ap, imgcenter, center)
                 #pdb.set_trace()
-                #asym = np.array(list(asym[minloc[0]:]) + list(asym[0:minloc[0]]))
+                return ga[0]-bkgmin, center
+            else:
+                minloc = np.where(ga == np.min(ga))[0]
                 #pdb.set_trace()
-                #print "asymmetry after:\n", np.array(asym)
-                counter += 1
+                delta = deltas[minloc[0]]
                 prior_points = list(points)
-                #print "now asym has been rotated for the new set of points:\n"
-                #print np.array(asym)
 
 
-        #return asymmetry, center
+    def shift_test(self, clean_dat, imgcenter):
+        # [row, col] --> [y, x]
+        clean_dat[252,255] = .1
+        # ----> [251., 251.] - [252., 255.] = [-1., -4.] => [dy, dx]
+        # shift works by putting it in [dy,dx] order 
+        newdata = sp.shift(clean_dat, [-1, -4])
+        rotdata = sp.rotate(newdata, 180.)
+        residual = np.abs(newdata - rotdata)
 
-    def asym_plot(self, clean_dat, shift, center, aperture):
-        imgcenter = [clean_dat.shape[0]/2., clean_dat.shape[1]/2.]
-        newdata = utils2.shift_image(clean_dat, shift[1], shift[0])
-        residual = newdata-np.rot90(newdata,2)
+        plt.figure()
+        plt.imshow(clean_dat)
+        plt.title('original')
+        plt.plot(imgcenter[0], imgcenter[1], 'k+', mew=2, ms=10)
+        plt.plot(255, 252, 'r+', mew=2, ms=10)
+        #plt.xlim(imgcenter[0]-2*self.rpet, imgcenter[0]+2*self.rpet)
+        #plt.ylim(imgcenter[1]-2*self.rpet, imgcenter[1]+2*self.rpet)
+        
         plt.figure()
         plt.imshow(newdata)
-        plt.plot(center[0], center[1], 'k+', mew=2, ms=10)
-        plt.plot(imgcenter[0], imgcenter[1], 'r+', mew=2, ms=10)
-        aperture.plot()
-        plt.xlim(imgcenter[0]-3*self.rpet, imgcenter[0]+3*self.rpet)
-        plt.ylim(imgcenter[1]-3*self.rpet, imgcenter[1]+3*self.rpet)
-        plt.title('Shifted Cleaned Image')
-        plt.savefig('output/asyms/'+self.name+'_asym1.png')
+        plt.title('shifted')
+        #plt.xlim(imgcenter[0]-2*self.rpet, imgcenter[0]+2*self.rpet)
+        #plt.ylim(imgcenter[1]-2*self.rpet, imgcenter[1]+2*self.rpet)
+        plt.plot(imgcenter[0], imgcenter[1], 'k+', mew=2, ms=10)
+        plt.plot(255, 252, 'r+', mew=2, ms=10)
 
-        plt.close()
+        plt.figure()
+        plt.imshow(rotdata)
+        plt.title('rotated')
+        #plt.xlim(imgcenter[0]-2*self.rpet, imgcenter[0]+2*self.rpet)
+        #plt.ylim(imgcenter[1]-2*self.rpet, imgcenter[1]+2*self.rpet)
+        plt.plot(imgcenter[0], imgcenter[1], 'k+', mew=2, ms=10)
+        plt.plot(255, 252, 'r+', mew=2, ms=10)
+        
         plt.figure()
         plt.imshow(residual)
-        plt.plot(center[0], center[1], 'k+', mew=2, ms=10)
-        plt.plot(imgcenter[0], imgcenter[1], 'r+', mew=2, ms=10)
-        aperture.plot()
-        plt.xlim(imgcenter[0]-3*self.rpet, imgcenter[0]+3*self.rpet)
-        plt.ylim(imgcenter[1]-3*self.rpet, imgcenter[1]+3*self.rpet)
-        plt.title('Asymmetry Residuals (I - I180)')
-        plt.savefig('output/asyms/'+self.name+'_asym2.png')
-        #exit()
+        plt.title('residual')
+        #plt.xlim(imgcenter[0]-2*self.rpet, imgcenter[0]+2*self.rpet)
+        #plt.ylim(imgcenter[1]-2*self.rpet, imgcenter[1]+2*self.rpet)
+        plt.plot(imgcenter[0], imgcenter[1], 'k+', mew=2, ms=10)
+        plt.plot(255, 252, 'r+', mew=2, ms=10)               
+        
+        plt.show()
+        pdb.set_trace()
+        
 
+    #def asym_plot(self, clean_dat, shift, center, aperture):
+    def asym_plot(self, shifted, residual, aperture, imgcenter, galcenter):
+        '''
+        plt.figure()
+        plt.imshow(org)
+        plt.title('original')
+        plt.plot(imgcenter[0], imgcenter[1], 'k+', mew=2, ms=10)
+        plt.plot(galcenter[1], galcenter[0], 'r+', mew=2, ms=10)
+        
+        plt.figure()
+        plt.imshow(shift)
+        plt.title('shifted')
+        plt.plot(imgcenter[0], imgcenter[1], 'k+', mew=2, ms=10)
+        plt.plot(galcenter[1], galcenter[0], 'r+', mew=2, ms=10)
+
+        plt.figure()
+        plt.imshow(rot)
+        plt.title('rotated')
+        plt.plot(imgcenter[0], imgcenter[1], 'k+', mew=2, ms=10)
+        plt.plot(galcenter[1], galcenter[0], 'r+', mew=2, ms=10)
+        
+        plt.figure()
+        plt.imshow(resid)
+        plt.title('residual')
+        plt.plot(imgcenter[0], imgcenter[1], 'k+', mew=2, ms=10)
+        plt.plot(galcenter[1], galcenter[0], 'r+', mew=2, ms=10) 
+        ap.plot()
+        plt.show()
+        '''
+        #imgcenter = [clean_dat.shape[0]/2., clean_dat.shape[1]/2.]
+        #newdata = utils2.shift_image(clean_dat, shift[1], shift[0])
+        #residual = newdata-np.rot90(newdata,2)
+        low = imgcenter[0]-2*self.rpet
+        high = imgcenter[1]+2*self.rpet
+        plt.figure()
+        plt.imshow(shifted)
+        plt.plot(galcenter[1], galcenter[0], 'k+', mew=2, ms=10)
+        plt.plot(imgcenter[1], imgcenter[0], 'r+', mew=2, ms=10)
+        aperture.plot()
+        plt.xlim(low, high)
+        plt.ylim(low, high)
+        plt.title('Shifted Cleaned Image')
+        plt.savefig('output/asyms/'+self.name+'_asym1.png')
+        plt.close()
+
+        plt.figure()
+        plt.imshow(residual)
+        plt.plot(galcenter[1], galcenter[0], 'k+', mew=2, ms=10, label="Asymmetry Center")
+        plt.plot(imgcenter[1], imgcenter[0], 'r+', mew=2, ms=10, label="Image Center")
+        aperture.plot()
+        plt.xlim(low, high)
+        plt.ylim(low, high)
+        plt.title('Asymmetry Residuals (I - I180)')
+        plt.legend()
+        plt.savefig('output/asyms/'+self.name+'_asym2.png')
         plt.close()
         return 0.
 
@@ -342,7 +406,7 @@ def main():
     #    help='Specify the config.sex file for sextractor configuration parameters')
     args = parser.parse_args()
     
-    fitsfiles = sorted(glob.glob(args.directory+'01*.fits'))
+    fitsfiles = sorted(glob.glob(args.directory+'*.fits'))
     #fitsfiles = sorted(glob.glob(args.directory))
         
     galaxies = []
@@ -359,6 +423,7 @@ def main():
         hdulist = fits.open(filename, memmap=True)
         galaxies.append(Galaxy(hdulist,filename)) #
         hdulist.close()
+        #pdb.set_trace()
     
     pdb.set_trace()
     info = Table(rows=[g.__dict__ for g in galaxies])
@@ -370,54 +435,55 @@ def main():
 if __name__ == '__main__':
     main()
     
-'''
-        shape = clean_dat.shape
-        galcenter = np.array([self.x, self.y])
-        imgcenter = np.array([shape[0]/2., shape[1]/2.])
 
-        # create aperture at center of image
-        ap = utils2.EllipticalAperture( imgcenter, 1.5*self.rpet, 
-                                        1.5*self.rpet/self.e, self.theta, clean_dat)
-        # create galaxy and background masks from aperture
-        apmask = ap.aper.astype('float')
-        bkgmask = np.logical_not(apmask).astype('float')
-
-        scale = utils2.scale(apmask, clean_dat.shape)
-        delta = imgcenter - galcenter
- 
-        prior_points = np.zeros((9,2))
-        asym = np.zeros((9,2))
-        counter = 0
-        while True:
-            # generate shifts from initial pixel (delta) to 8 surrounding "pixels"
-            deltas, points = utils2.generate_deltas(imgcenter, .2, delta)
-            # find asymmetry in the new set of "pixels" -- need to optimize this!!!
-            for idx, d in enumerate(deltas):
-                # measure the asymmetry for 9 locations at and around the original delta
-                asym[idx] = utils2.measure_asymmetry(clean_dat, apmask, bkgmask, d, scale)
-
-            minloc = np.where(asym[:,0] == asym[:,0].min())[0]
-            minasym = asym[minloc[0]]
-            mindelta = deltas[minloc[0]]
-
-            # if the asymmetry found at the original center is the minimum, we're done
-            if asym[0,0] == asym[:,0].min():
-                center = imgcenter - mindelta
-                asymmetry = minasym
-            
-                self.asym_plot(clean_dat, mindelta, center)
-                plt.savefig('asymfig_num'+str(counter)+'.png')
-
-                exit()
-                return asymmetry, center
-            # if not, repeat the process until we find the asymmetry minimum
-            else:
-                delta = mindelta
-                center = points[minloc[0]]
-                self.asym_plot(clean_dat, mindelta, center)
-                plt.savefig('asymfig_num'+str(counter)+'.png')
-                counter += 1
-                prior_points = points.copy()
-
-        #return asymmetry, center
-'''
+    '''
+    baa = []
+    # minimize the background first
+    for d, p in zip(deltas, points):
+    if p not in asyms: 
+    
+    bkgdata = sp_interp.shift(bkg_img, d)
+    bkgrot = sp_interp.rotate(bkgdata, 180.)
+    b_resid = np.abs(bkgdata-bkgrot)
+    b_num = aperture_photometry(b_resid, aperture)
+    b_den = aperture_photometry(np.abs(bkgdata), aperture)
+    bn, bd = b_num['aperture_sum'], b_den['aperture_sum']
+    basym = bn/(2*bd)
+    baa.append(basym)
+    # ... and a dictionary that maps each asym to a point on the image grid
+    basyms[p].append(basym)
+    
+    if baa[0] == np.min(baa):
+    center = imgcenter - deltas[0]
+    #self.asym_plot()
+    return baa[0], center
+    else:
+    minloc = np.where(baa == np.min(baa))[0]
+    delta = deltas[minloc[0]]
+    prior_points = list(points)
+    print delta
+    
+    print baa
+    pdb.set_trace()
+    
+    # Doing it Claudia's way
+    galdata = sp_interp.shift(smaller, d)
+    galrot = sp_interp.rotate(galdata, 180.)
+    g_resid = np.abs(galdata-galrot)
+    
+    
+    g_num = aperture_photometry(g_resid, aperture)
+    g_den = aperture_photometry(np.abs(galdata), aperture)
+    b_num = aperture_photometry(b_resid, aperture)
+    b_den = aperture_photometry(np.abs(bkgdata), aperture)
+    
+    gn, gd = g_num['aperture_sum'], g_den['aperture_sum']
+    
+    asym = gn/(2*gd) - bn/(2*bd)
+    
+    #self.asym_plot(smaller, galdata, galrot, g_resid, aperture, imgcenter_sm, p)
+    self.asym_plot(bkg_img, bkgdata, bkgrot, b_resid, aperture, imgcenter_sm, p)
+    pdb.set_trace()
+    
+    '''
+    

@@ -620,21 +620,28 @@ def main():
     outdir = 'output/datacube2/'
 
     galaxies = []
+    dists, names = [], []
+    t = Table()
     for f in fitsfiles: 
         filename = outdir+'f_'+os.path.basename(f)
+        names.append(filename)
         if not os.path.isfile(filename):
             print "File not found! Running SExtractor before proceeding."
             print "Cleaning ", os.path.basename(f)
-            utils2.clean_frame(f, outdir)
+            dists.append(utils2.clean_frame(f, outdir))
         #else:
         # run everything else
         print "Running", os.path.basename(f)
-        hdulist = fits.open(filename, memmap=True)
-        galaxies.append(Galaxy(hdulist,filename)) #
-        hdulist.close()
-
-    info = Table(rows=[g.__dict__ for g in galaxies])
-    info.write(args.output, overwrite=True)
+        #hdulist = fits.open(filename, memmap=True)
+        #galaxies.append(Galaxy(hdulist,filename)) 
+        #hdulist.close()
+    
+    #pdb.set_trace()
+    t['names'] = names
+    t['dists'] = dists
+    t.write('distance.txt', format='ascii')
+    #info = Table(rows=[g.__dict__ for g in galaxies])
+    #info.write(args.output, overwrite=True)
 
     exit()  
 
