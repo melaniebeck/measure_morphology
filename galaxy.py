@@ -617,25 +617,22 @@ def main():
     fitsfiles = sorted(glob.glob(args.directory+'*.fits'))
     #fitsfiles = sorted(glob.glob(args.directory))
 
+    outdir = 'output/datacube2/'
+
     galaxies = []
     for f in fitsfiles: 
-        filename = 'output/datacube/f_'+os.path.basename(f)
+        filename = outdir+'f_'+os.path.basename(f)
         if not os.path.isfile(filename):
             print "File not found! Running SExtractor before proceeding."
             print "Cleaning ", os.path.basename(f)
-            utils2.clean_frame(f)
+            utils2.clean_frame(f, outdir)
         #else:
         # run everything else
         print "Running", os.path.basename(f)
         hdulist = fits.open(filename, memmap=True)
         galaxies.append(Galaxy(hdulist,filename)) #
         hdulist.close()
-        #if filename == 'output/f_0100_149.622818_2.678992_acs_I_mosaic_30mas_sci.fits': 
-        #    break
-        #pdb.set_trace()
 
-    #pdb.set_trace()
-    
     info = Table(rows=[g.__dict__ for g in galaxies])
     info.write(args.output, overwrite=True)
 

@@ -4,26 +4,16 @@ import numpy as np
 import pyfits as fits
 from astropy.table import Table
 from scipy.interpolate import interp1d
-import sextutils        # eventually you need to write your own!
 from collections import OrderedDict
 from random import gauss
-from math import pi
 import pdb #"""for doing an IDL-like stop"""
 from scipy.spatial import cKDTree
 import scipy.ndimage as ndimage
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 import fast_ffts
+import run_sextractor
 
-
-def write_config(cdict, outname):  
-    ''' write config.sex out to file '''
-    f = open(outname,'w')
-    for k,v in cdict.iteritems():
-        f.write('%s\t'%k)
-        v = ','.join(v)
-        f.write('%s\n'%v)
-    f.close()
 
 def find_closest(point, listofpoints):
     
@@ -34,31 +24,18 @@ def find_closest(point, listofpoints):
     # return the value of the closest point
     return listofpoints[index], index, dist
 
-def run_sextractor(imgname, catname, segname, configfile):
-    # open the configfile to adjust parameters
-    cfile = sextutils.parseconfig_se(configfile)
-    
-    # TAILOR CONFIG.SEX TO PRODUCE UNIQUE OUTPUT FOR EACH OBJECT
-    cfile['CATALOG_NAME'], cfile['CHECKIMAGE_NAME'] = [catname], [segname]
-    
-    # WRITE THE UPDATED CONFIG.SEX TO FILE
-    write_config(cfile, 't_'+configfile)
-    
-    # RUN SEXTRACTOR WITH UPDATED CONFIG.SEX
-    cmdline = "sextractor "+imgname+" -c t_"+configfile
-    rcode = os.system(cmdline)
-    if (rcode):
-        "SExtractor command [%s] failed." % cmdline    
 
 def clean_pixels(data, mask, segmap):
-    mean = np.mean(data[segmap == 0])
-    std = np.std(data[segmap == 0])
+    #mean = np.mean(data[segmap == 0])
+    #std = np.std(data[segmap == 0])
+    med = np.median(data[segmap == 0])
+    rms = np.sqrt(np.mean(np.square(data[segmap==0])))
     for pixel in zip(mask[0], mask[1]):
         #pdb.set_trace()
         data[pixel] = gauss(mean, std)
     return data
 
-def clean_frame(img_name): #, configs
+def clean_frame(image, outdir):
     '''
     Gonna try a two-stage method of cleaning:
         1. run the cutout using the Faint SE parameters
@@ -70,17 +47,17 @@ def clean_frame(img_name): #, configs
             the Bright run 
     #'''
 
-    fitsname = os.path.basename(img_name)
-    catnames = ['output/cB_'+fitsname, 'output/cF_'+fitsname]
-    segnames = ['output/sB_'+fitsname, 'output/sF_'+fitsname]
-    configs = ['config_bright.sex','config_faint.sex']
-    outname = 'output/datacube/f_'+fitsname
-    
-    for config, cat, seg in zip(configs, catnames, segnames):
-        run_sextractor(img_name, cat, seg, config)
+    basename = os.path.basename(os.path.splitext(image)[0])
+    outname = outdir+basename
+    catnames = [outname+'_bright_cat.fits', outname+'_faint_cat.fits']
+    segnames = [outname+'_bright_seg.fits', outname+'_faint_seg.fits']
+
+    # run SE in FAINT and BRIGHT modes
+    run_sextractor.run_SE(image, 'BRIGHT', outdir)
+    run_sextractro.run_SE(image, 'FAINT', outdir)
 
     # READ IN ORIG FITS-FILE AND both Bright/Faint SEG-MAPs
-    img, ihdr = fits.getdata(img_name, header=True)
+    img, ihdr = fits.getdata(image, header=True)
     bseg, bshdr = fits.getdata(segnames[0], header=True)
     fseg, fshdr = fits.getdata(segnames[1], header=True)
 
@@ -128,7 +105,7 @@ def clean_frame(img_name): #, configs
             ''' SMOOTH ON THE ORIGINAL IMAGE
                 RERUN SEXTRACTOR WITH FAINT PARAMETERS
                 before cleaning '''
-            run_sextractor(img_name, 'output/cUF_'+fitsname, 'output/sUF_'+fitsname, 
+            run_sextractor.run_SE(img_name, 'output/cUF_'+fitsname, 'output/sUF_'+fitsname, 
                            'config_ultrafaint.sex')
             ufseg, ufshdr = fits.getdata('output/sUF_'+fitsname, header=True)
             ufcat, ufchdr = fits.getdata('output/cUF_'+fitsname, header=True)
@@ -176,7 +153,7 @@ def clean_frame(img_name): #, configs
     for thing in (init0, init1, init2, init3, init4):
         newthing.append(thing)
     newthing.update_extend()
-    newthing.writeto(outname, output_verify='silentfix', clobber=True)
+    newthing.writeto(outdir+fitsname, output_verify='silentfix', clobber=True)
     
     # clean up directory
     os.system("rm output/datacube/[c,s,a]*.fits")
