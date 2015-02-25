@@ -37,10 +37,10 @@ class Galaxy(object):
         name = os.path.basename(filename)
         name = string.split(name,'.fits')
         self.name = name[0]
-
+        
         # checks? are performed outside of the galaxy initialization in __init__
         # but additional ones should probably be performed here as well (someday...)
-                
+        
         # initialize SExtractor parameters        
         self.e = cat['ELONGATION']
         self.x, self.y = cat['X_IMAGE'], cat['Y_IMAGE']
@@ -621,14 +621,18 @@ def main():
 
     galaxies = []
     dists, names = [], []
-    t = Table()
+    t = Table(names=('name', 'Fdist', 'Bdist', 'B2dist', 
+                     'F-B', 'Farea', 'Barea'), 
+              dtype=('S60', 'f4', 'f4', 'f4', 'f4', 'f4', 'f4'))
     for f in fitsfiles: 
-        filename = outdir+'f_'+os.path.basename(f)
-        names.append(filename)
+        basename = os.path.basename(f)
+        filename = outdir+'f_'+basename
+        names.append(basename)
         if not os.path.isfile(filename):
             print "File not found! Running SExtractor before proceeding."
             print "Cleaning ", os.path.basename(f)
-            dists.append(utils2.clean_frame(f, outdir))
+            fdist, bdist, b2dist, fbdist, farea, barea = utils2.clean_frame(f, outdir)
+            t.add_row((filename, fdist, bdist, b2dist, fbdist, farea, barea))
         #else:
         # run everything else
         print "Running", os.path.basename(f)
@@ -636,10 +640,9 @@ def main():
         #galaxies.append(Galaxy(hdulist,filename)) 
         #hdulist.close()
     
-    #pdb.set_trace()
-    t['names'] = names
-    t['dists'] = dists
-    t.write('distance.txt', format='ascii')
+    #t['names'] = names
+    #t['dists'] = dists
+    t.write('data.txt', format='ascii.fixed_width', delimiter='')
     #info = Table(rows=[g.__dict__ for g in galaxies])
     #info.write(args.output, overwrite=True)
 

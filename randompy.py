@@ -472,6 +472,11 @@ def plotM20(zestdata, dataset):
     f.close()
 
     #pdb.set_trace()
+
+def analyse_cleaning():
+    dat = Table.read('data.txt')
+    
+    
     
 def main():
 
