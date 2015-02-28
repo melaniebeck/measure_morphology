@@ -617,31 +617,28 @@ def main():
     fitsfiles = sorted(glob.glob(args.directory+'*.fits'))
     #fitsfiles = sorted(glob.glob(args.directory))
 
-    outdir = 'output/datacube2/'
+    outdir = 'output/datacube3/'
 
     galaxies = []
-    dists, names = [], []
-    t = Table(names=('name', 'Fdist', 'Bdist', 'B2dist', 
-                     'F-B', 'Farea', 'Barea'), 
-              dtype=('S60', 'f4', 'f4', 'f4', 'f4', 'f4', 'f4'))
+    t = Table(names=('name', 'Fidx', 'Fdist', 'Bdist', 
+                     'F-B', 'Farea', 'Barea', 'Flag', 'aFlag'), 
+              dtype=('S70', 'i', 'f4', 'f4', 'f4', 'f4', 'f4', 'i', 'i'))
     for f in fitsfiles: 
         basename = os.path.basename(f)
         filename = outdir+'f_'+basename
-        names.append(basename)
         if not os.path.isfile(filename):
             print "File not found! Running SExtractor before proceeding."
             print "Cleaning ", os.path.basename(f)
-            fdist, bdist, b2dist, fbdist, farea, barea = utils2.clean_frame(f, outdir)
-            t.add_row((filename, fdist, bdist, b2dist, fbdist, farea, barea))
+            fidx,fdist,bdist,fbdist,farea,barea,flag,aflag = utils2.clean_frame(f, outdir)
+            t.add_row((basename, fidx, fdist, bdist, fbdist, farea, barea, flag, aflag))
         #else:
         # run everything else
-        print "Running", os.path.basename(f)
+        #print "Running", os.path.basename(f)
         #hdulist = fits.open(filename, memmap=True)
         #galaxies.append(Galaxy(hdulist,filename)) 
         #hdulist.close()
-    
-    #t['names'] = names
-    #t['dists'] = dists
+
+
     t.write('data.txt', format='ascii.fixed_width', delimiter='')
     #info = Table(rows=[g.__dict__ for g in galaxies])
     #info.write(args.output, overwrite=True)

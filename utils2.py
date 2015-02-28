@@ -35,7 +35,46 @@ def clean_pixels(data, mask, segmap):
         data[pixel] = gauss(med, rms)
     return data
 
-def clean_frame(image, outdir):
+def clean_image(image, SEseg, SEcat, idx, bkgseg):
+    mask = np.where((SEseg != SEcat[num][idx]) & (SEseg != 0)) 
+    image = clean_pixels(image, mask, bkgseg)
+    return image
+
+def closest_above_thresh(SEcat, thing, center, coords, threshold=50., k=10):
+    '''
+    Find an object that is closest to the center of the image that also meets
+    a minimum threshold value for some desired quantity (thing)
+    Returns information about that object: 
+       Distance to the center
+       Coordinates of the object in the image
+       Index of the object in the SE catalog
+       Thing value that meets the set threshold
+
+    For example: find galaxy closest to center that has a pixel area larger than 
+                 fifty pixels**2
+
+    Also returns a flag if the closest object does NOT meet the threshold
+    '''
+    Flag = 0
+
+    indexes, distances = find_closest(center, coords, k)
+    things = SEcat[thing][indexes]
+    if any(thing > threshold):
+        Dist = np.min(distances[np.where(things>threshold)])
+        Index = indexes[distances==Dist][0]
+        Coord = coords[Index]
+        Thing = SEcat[thing][Index]
+        if Thing != things[0]:
+            Flag = 1
+    else:
+        Dist = distances[0]
+        Index = indexes[0]
+        Coord = coords[Index]
+        Thing = thing[0]
+        Flag = 1
+    return Dist, Index, Coord, Thing, Flag
+
+def clean_frame(image, outdir, sep=17.):
     '''
     Gonna try a two-stage method of cleaning:
         1. run the cutout using the Faint SE parameters
@@ -45,7 +84,24 @@ def clean_frame(image, outdir):
             that wasn't found with the Faint, clean those too
         5. use (return) as the "official" parameters those that are found via
             the Bright run 
+
+        sep is the minimum separation distance (in pixels) between: 
+            1. the gal in BRIGHT and the center
+            2. the gal in FAINT and the center
+            3. the gal in FAINT and the gal in BRIGHT
     #'''
+
+    # initialize some shit for laterz
+    Flag = 0
+    center = [img.shape[0]/2., img.shape[1]/2.]
+    Bdist = center[0]
+    Barea, B2dist = 0., 0.
+
+    # commonly used SE keywords
+    num = 'NUMBER'
+    area = 'ISOAREA_IMAGE'
+    x, y = 'X_IMAGE', 'Y_IMAGE'
+
 
     basename = os.path.basename(os.path.splitext(image)[0])
     outname = outdir+basename
@@ -60,37 +116,20 @@ def clean_frame(image, outdir):
 
     # READ IN ORIG FITS-FILE AND both Bright/Faint SEG-MAPs
     img, ihdr = fits.getdata(image, header=True)
-    bseg, bshdr = fits.getdata(segnames[0], header=True)
-    fseg, fshdr = fits.getdata(segnames[1], header=True)
-
-    # READ IN THE SE CATALOGs (Bright & Faint)
-    bcat, bchdr = fits.getdata(catnames[0], header=True)
-    fcat, fchdr = fits.getdata(catnames[1], header=True)
-
     cln = img.copy()
-    
-    # FIND GALAXY OF INTEREST (it will be in the CENTER OF IMAGE)
-    center = [img.shape[0]/2., img.shape[1]/2.]
 
-    # should always clean off of FAINT first -- 
-    # unless it's too blended into nearby galaxy
+    bseg, fseg = fits.getdata(segnames[0]), fits.getdata(segnames[1]) 
+    bcat, fcat = fits.getdata(catnames[0]), fits.getdata(catnames[1])
 
-    # initilize Bdist as something huge --> if there is something 
-    # detected in BRIGHT this will be overwritten
-    # if not, then a value this large won't interfere with cleaning on FAINT
-    Bdist = center[0]
-    Barea, B2dist = 0., 0.
-    
-    path = []
 
     # test BRIGHT segmap for any objects whatsoever
     if np.any(np.nonzero(bseg)):
         # find object in BRIGHT closest to center
-        BIndex,Bdist = find_closest(center,zip(bcat['X_IMAGE'],bcat['Y_IMAGE']))
-        BCoord = zip(bcat['X_IMAGE'],bcat['Y_IMAGE'])[BIndex]
+        BIndex,Bdist = find_closest(center,zip(bcat[x],bcat[y]))
+        BCoord = zip(bcat[x], bcat[y])[BIndex]
 
         # if obj detected in BRIGHT -- find next closest
-        idx, dst = find_closest(BCoord, zip(bcat['X_IMAGE'],bcat['Y_IMAGE']))
+        idx, dst = find_closest(BCoord, zip(bcat[x], bcat[y]), k=2)
 
         if any(np.isinf(dst)):
             B2Index, B2dist = 0., 0.
@@ -98,102 +137,129 @@ def clean_frame(image, outdir):
             B2Index, B2dist = idx[1], dst[1]
 
             # find the combined area of these two obj (pixels**2)
-            Barea = bcat['ISOAREA_IMAGE'][BIndex] + \
-                    bcat['ISOAREA_IMAGE'][B2Index]
+            Barea = bcat[area][BIndex] + bcat[area][B2Index]
 
-        path.append('something in BRIGHT')
+    coords = zip(fcat[x], fcat[y])
+    Fdist, FIndex, FCoord, Farea, aFlag = closest_above_thresh(fcat, area, 
+                                                               center, coords)
 
-    # find object closest to center in FAINT
-    FIndex, Fdist =  find_closest(center, zip(fcat['X_IMAGE'], fcat['Y_IMAGE']))
-    FCoord = zip(fcat['X_IMAGE'],fcat['Y_IMAGE'])[FIndex]
-
-    # find area of obj in FAINT
-    Farea = fcat['ISOAREA_IMAGE'][FIndex]
-    
-    # if obj is detected in BRIGHT and FAINT -- test FAINT to 
-    # see if it's blended with nearby obj by checking how close it is to 
-    # corresponding obj in BRIGHT
+    DIST = abs(Fdist - Bdist)
 
     # if distance between center of BRIGHT and FAINT objs is small
     # then it's most likely well detected in FAINT (not blended)
     # clean on FAINT only
-    if abs(Fdist - Bdist) < 10.:
+    if (DIST < sep):
+        if (Bdist < sep) & (Fdist < sep):
+            cln = clean_image(cln, fseg, fcat, FIndex, fseg)
+            Flag, mode = 1, 'FAINT'
 
-        cleanmask = np.where((fseg != fcat['NUMBER'][FIndex]) & (fseg != 0)) 
-        cln = clean_pixels(cln, cleanmask, fseg)
+        if (Bdist < sep) & (Fdist > sep):
+            cln = clean_image(cln, bseg, bcat, BIndex, fseg)
+            Flag, mode = 2, 'BRIGHT'
 
-        # if obj is detected in BRIGHT, save BRIGHT catalog info
+        if (Bdist > sep) & (Fdist < sep):
+            cln = clean_image(cln, fseg, fcat, FIndex, fseg)
+            Flag, mode = 7, 'FAINT'
+
+        if (Bdist > sep) & (Fdist > sep):
+            cln = clean_image(cln, bseg, bcat, BIndex, fseg)
+            Flag, mode = 8, 'BRIGHT'
+
+    else:
+        # I don't think this one can ever happen....
+        if  (Bdist < sep) & (Fdist < sep):
+            cln = clean_image(cln, bseg, bcat, BIndex, fseg)
+            Flag, mode = 3, 'BRIGHT'
+
+        if  (Bdist < sep) & (Fdist > sep):
+            '''
+            If DIST large but Bdist small --> Fdist must be large
+            This means that obj is likely detected in BRIGHT but is blended
+            into a nearby bright object in FAINT.
+            Try Two Stage Cleaning mode:
+              1. Clean on BRIGHT then 
+              2. Run SE again in FAINT mode and clean on that. 
+            '''
+            if (Barea > 0.6*Farea) & (Barea < Farea):
+                cln = clean_image(cln, fseg, fcat, FIndex, fseg)
+
+            else:
+                cln = clean_image(cln, bseg, bcat, BIndex, fseg)
+                
+                # run SE again in FAINT
+                run_sextractor.run_SE(image, 'FAINT', outdir)
+                f2seg, f2cat = fits.getdata(segnames[2]),fits.getdata(catnames[2])
+                F2Index, F2dist = find_closest(center, zip(scat[x], scat[y]))
+
+                cln = clean_image(cln, f2seg, f2cat, F2Index, f2seg)
+
+            Flag, mode = 4, 'FAINT'
+ 
+        if  (Bdist > sep) & (Fdist < sep):
+            # not detected in BRIGHT but it is in FAINT -- Smooth first?
+            run_sextractor.run_SE(image, 'SMOOTH', outdir)
+            sseg, scat = fits.getdata(segnames[2]), fits.getdata(catnames[2])
+            SIndex, Sdist = find_closest(center, zip(scat[x], scat[y]))
+
+            cln = clean_image(cln, sseg, scat, SIndex, sseg)
+            Flag, mode = 5, 'SMOOTH'
+
+        if  (Bdist > sep) & (Fdist > sep):
+            # if central object not found in BRIGHT and not well 
+            # detected in FAINT
+                       
+            run_sextractor.run_SE(image, 'SMOOTH', outdir)
+            sseg, scat = fits.getdata(segnames[2]), fits.getdata(catnames[2])
+            SIndex, Sdist = find_closest(center, zip(scat[x], scat[y]))
+
+            cln = clean_image(cln, sseg, scat, SIndex, sseg)
+            Flag, mode = 6, 'SMOOTH'
+
+    # Now that we've done the cleaning -- Let's test it! 
+    # Run SE again in FAINT. If nothing above the min area is found near the 
+    # center of the image then we OVERCLEANED. FLAG THIS.
+    run_sextractor.run_SE(cln, 'FAINT', outdir)
+    tseg = fits.getdata(outname+'_faint_seg_faint.fits')
+    tcat = fits.getdata(outname+'_faint_cat_faint.fits')
+
+    coords = zip(tcat[x], tcat[y])
+    Tdist, TIndex, TCoord, Tarea, tFlag = closest_above_thresh(tcat, area, 
+                                                               center, coords)
+    ocln_flag = 0
+    if Tdist > sep: 
+        print 'OVERCLEANED!!!'
+        ocln_flag = 1
+
+
+    if mode == 'BRIGHT':
         ihdr.set('SE_MODE', 'BRIGHT', 'Sextractor mode used to clean image')
         ihdr.set('SECATIDX', BIndex, 
-                  'Index in BRIGHT catalog denoting gal of interest')
-        init4 = fits.TableHDU(data=bcat, header=bchdr, name='BCAT')
-        # Save BRIGHT and FAINT segmaps
-        init2 = fits.ImageHDU(data=bseg, header=bshdr, name='BSEG')
-        init3 = fits.ImageHDU(data=fseg, header=fshdr, name='FSEG')
+                 'Index in BRIGHT catalog denoting gal of interest')
+        init2 = fits.ImageHDU(data=bseg, name='BSEG')
+        init3 = fits.ImageHDU(data=fseg, name='FSEG')
+        init4 = fits.TableHDU(data=bcat, name='BCAT')
 
-        path.append('F-B < 10')
-
-    # if this distance is not small:
-    # Either obj in FAINT is blended into nearby obj OR
-    # No objects were found in BRIGHT OR
-    # Objects were found in BRIGHT but they are far from center
-       
-        
-    # if something detected near center in BRIGHT but dist is large -- 
-    # obj in FAINT is probably blended into nearby obj OR
-    # obj in BRIGHT is detected as two parts instead of one
-    if (abs(Fdist - Bdist) > 10) & (Bdist < 10.):
-
-        # if the area of two nearby objs in BRIGHT are similar to that in FAINT
-        # then it is likely that BRIGHT is breaking up one galaxy into 2 parts
-        # Clean on FAINT only!
-        if (Barea > 0.75*Farea) & (Barea < Farea):
-
-            cleanmaskF = np.where((fseg != 0)&(fseg != fcat['NUMBER'][FIndex]))
-            cln = clean_pixels(cln, cleanmaskF, fseg)
-            
-            path.append('Barea > 0.75 Farea')
-
-        # if the area in FAINT is much larger, then it's likely that obj in 
-        # FAINT is blended into nearby obj 
-        # clean on FAINT then on BRIGHT
-        if Farea > 1.5*Barea:
-            cleanmaskB = np.where((bseg != bcat['NUMBER'][BIndex])&(bseg != 0))
-            cleanmaskF = np.where((fseg != 0)&(fseg != fcat['NUMBER'][FIndex]))
-            # clean on FAINT first then on BRIGHT
-            cln = clean_pixels(cln, cleanmaskF, fseg)
-            cln = clean_pixels(cln, cleanmaskB, fseg)
-                        
-            path.append('Farea > 1.5 Barea')
-            
-
-    # if no objects found in BRIGHT -- run SE again with SMOOTH
-    # or object detected is too far from center 
-    if Bdist > 100.:
-        
-        run_sextractor.run_SE(image, 'SMOOTH', outdir)
-        sseg, sshdr = fits.getdata(segnames[2], header=True)
-        scat, schdr = fits.getdata(catnames[2], header=True)
-        SIndex,Sdist = find_closest(center,zip(scat['X_IMAGE'],scat['Y_IMAGE']))
-        cleanmask = np.where((sseg != 0) & (sseg != scat['NUMBER'][SIndex]))
-        cln = clean_pixels(cln, cleanmask, sseg) 
-
-        # if obj NOT detected in BRIGHT, save FAINT catalog info
-        ihdr.set('SE_MODE', 'SMOOTH', 'Sextractor mode used to clean image')
+    elif mode == 'FAINT':
+        ihdr.set('SE_MODE', 'FAINT', 'Sextractor mode used to clean image')
         ihdr.set('SECATIDX', FIndex, 
                   'Index in FAINT catalog denoting gal of interest')
-        init4 = fits.TableHDU(data=fcat, header=fchdr, name='FCAT') 
-        # Save FAINT and SMOOTH segmaps
-        init2 = fits.ImageHDU(data=fseg, header=fshdr, name='FSEG')
-        init3 = fits.ImageHDU(data=sseg, header=sshdr, name='SSEG')
+        init2 = fits.ImageHDU(data=bseg, name='BSEG') 
+        init3 = fits.ImageHDU(data=fseg, name='FSEG')
+        init4 = fits.TableHDU(data=fcat, name='FCAT') 
 
+    elif mode == 'SMOOTH':
+        ihdr.set('SE_MODE', 'SMOOTH', 'Sextractor mode used to clean image')
+        ihdr.set('SECATIDX', FIndex, 
+                 'Index in FAINT catalog denoting gal of interest')
+        init2 = fits.ImageHDU(data=fseg, name='FSEG')
+        init3 = fits.ImageHDU(data=sseg, name='SSEG')
+        init4 = fits.TableHDU(data=scat, name='SCAT') 
 
+        
     # SAVE ALL PRODUCTS TO DATA CUBE
     init0 = fits.ImageHDU(data=img, header=ihdr, name='ORG')
     init1 = fits.ImageHDU(data=cln, header=ihdr, name='CLN')
-    #init2 = fits.ImageHDU(data=bseg, header=bshdr, name='BSEG')
-    #init3 = fits.ImageHDU(data=fseg, header=fshdr, name='FSEG')
-    
+
     newthing = fits.HDUList()
     for thing in (init0, init1, init2, init3, init4):
         newthing.append(thing)
@@ -202,11 +268,11 @@ def clean_frame(image, outdir):
                      clobber=True)
     
     # clean up directory
-    os.system("rm "+outdir+"*bright*.fits")
+    #os.system("rm "+outdir+"*bright*.fits")
     os.system("rm "+outdir+"*faint*.fits")
     os.system("rm "+outdir+"*smooth*.fits")
 
-    return Fdist, Bdist, B2dist, abs(Fdist - Bdist), Farea, Barea
+    return FIndex, Fdist, Bdist, DIST, Farea, Barea, Flag, aFlag, ocln_flag
 
 
 def shift_image(data, deltax, deltay, phase=0, nthreads=1, use_numpy_fft=False,

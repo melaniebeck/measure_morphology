@@ -14,7 +14,7 @@ from random import gauss
 import matplotlib.pyplot as plt
 from math import pi
 import pdb #"""for doing an IDL-like stop"""
-from utils import find_closest
+from utils2 import find_closest
 
 
 
@@ -474,9 +474,113 @@ def plotM20(zestdata, dataset):
     #pdb.set_trace()
 
 def analyse_cleaning():
-    dat = Table.read('data.txt')
+    '''
+    Flag Key: (old)
+    0:  didn't pass through anything. Oops
+    2:  DIST < 10 & Bdist < 10
+    3:  DIST > 10 & Bdist < 10 & Barea > 0.75 Farea
+    4:  DIST > 10 & Bdist < 10 
+    5:  DIST > 10 & Bdist > 10 & Fdist < 10
+    6:  DIST > 10 & Bdist > 10 & Fdist > 10
+    '''
+    flagtype = [1,2,3.1, 3.2,4,5,6,7,8]
+    dat = Table.read('data.txt', format='ascii')
+    
+    ff = dat['Flag']
+
+    plt.figure()
+    weights= np.ones_like(ff, dtype='float')/len(ff)
+    plt.hist(ff, weights=weights)
+    plt.xlabel('Flag value')
+    plt.ylabel('Proportion of Flag Value for Sample')
+    plt.savefig('flag_freq_new.png')
+    plt.close()
+    #plt.show()
+
+
+    datf = {}
+    for f in flagtype:
+        datf["flag"+str(f)] = dat['name', 'Fdist', 'Bdist', \
+                                 'F-B', 'Farea'][ff == f]
+
+    colors=['red', 'blue', 'green','green','yellow', 
+            'cyan', 'purple','black', 'magenta']
+
+    plt.figure()
+    for idx, f in enumerate(flagtype):
+        datname = 'flag'+str(f)
+        plt.plot(datf[datname]['Fdist'], datf[datname]['Bdist'], 
+                 color=colors[idx],  marker='o', ls='None', label=datname)
+    plt.legend()
+    plt.xlabel('Fdist')
+    plt.ylabel('Bdist')
+    plt.legend()
+    plt.savefig('FBdist_flags_new.png')
+    plt.close()
+    #plt.show()
+    
+    for idx, f in enumerate(flagtype):
+        plt.figure()
+        datname = 'flag'+str(f)
+        weights = np.ones_like(datf[datname]['Farea'])/len(datf[datname]['Farea'])
+        try:
+            bins = np.arange(min(datf[datname]['Farea']), 
+                             max(datf[datname]['Farea'])+100, 100)
+            plt.hist(datf[datname]['Farea'], weights=weights, bins=bins, 
+                     alpha=0.5, color=colors[idx], label=datname)
+        except ValueError:
+            pass
+        plt.legend()
+        #plt.xlim(0,30000)
+        plt.xlabel('Farea')
+        plt.ylabel('Proportion of subclass: Flag')
+        plt.close()
+    #plt.show()
+
+    pdb.set_trace()
+
+    b2dist = dat['B2dist']
+    #plt.figure()
+    #plt.hist(b2dist, bins=np.arange(min(b2dist), max(b2dist)+.1, .1))
+    #plt.xlim(5, 50)
+    #plt.ylim(0,10)
+    #plt.show()
+
+    plt.figure()
+    plt.plot(dat['Fdist'], dat['Bdist'], 'ro')
+    plt.xlabel('Fdist')
+    plt.ylabel('Bdist')
+    #plt.show()
+    
+    plt.figure()
+    bins = np.arange(0, 251,5)
+    plt.hist(dat['Bdist'], bins=bins, color='blue', label='Bdist')
+    plt.hist(dat['Fdist'], bins=bins, color='red', label='Fdist')
+    plt.legend(loc='best')
+    plt.show()
+    
+    #pdb.set_trace()
+    near = dat[np.where((b2dist >= 10.) & (b2dist < 20.))]
+    med = dat[np.where((b2dist >= 20) & (b2dist < 30.))]
+
+    pdb.set_trace()
+
+    #f = open('testB2dist_med.sh', 'wb')
+    
+    #for n in med:
+    #    f.write('ds9m output/datacube2/f_%s\n'%n['name'])
+    #f.close()
+
+    f = open('Fdist_large.txt', 'wb')
+    fdist = dat[dat['Fdist']>20.]
+    for n in fdist:
+        f.write('output/datacube2/f_%s\n'%n['name'])
+    f.close()
     
     
+
+
+    exit()
     
 def main():
 
@@ -496,8 +600,9 @@ def main():
     
     #plotgini(zestdata, dataset)
 
-    plotM20(zestdata, dataset)
-         
+    #plotM20(zestdata, dataset)
+     
+    analyse_cleaning()
     #pdb.set_trace()
     
     exit()

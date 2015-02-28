@@ -23,3 +23,9 @@ Various catalogs and what they contain:
 	contains: rpet and Gini only and Gini is good!
 
 
+
+Concerning the Flags produced by utils2.clean_frame
+0: (Fdist - Bdist) < 10 and Bdist < 10
+1: (Fdist - Bdist) > 10 and Bdist < 10 and Barea > 0.75 Farea and Barea < Farea
+2: (Fdist - Bdist) > 10 and Bdist < 10 and Farea > 1.5 Barea
+3: 
