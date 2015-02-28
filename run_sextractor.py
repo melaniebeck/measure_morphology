@@ -23,7 +23,6 @@ def single_SE(image, outstr, outdir='', params={}):
 
     subprocess.check_call(args)
 
-
 def run_SE(image, section, outdir):
     ''' Run SExtractor on COSMOS/ZEST cutouts using the parameters
         in se_param.cfg
