@@ -8,7 +8,7 @@ import pdb
 
 def single_SE(image, outstr, outdir='', params={}):
     basename = os.path.basename(os.path.splitext(image)[0])
-
+    #pdb.set_trace()
     cat = '%s%s_%s_cat.fits' %(outdir, basename, outstr)
     seg = '%s%s_%s_seg.fits' %(outdir, basename, outstr)
     

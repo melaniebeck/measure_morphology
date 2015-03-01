@@ -617,11 +617,11 @@ def main():
     fitsfiles = sorted(glob.glob(args.directory+'*.fits'))
     #fitsfiles = sorted(glob.glob(args.directory))
 
-    outdir = 'output/datacube3/'
+    outdir = 'output/datacube5/'
 
     galaxies = []
     t = Table(names=('name', 'Fidx', 'Fdist', 'Bdist', 
-                     'F-B', 'Farea', 'Barea', 'Flag', 'aFlag'), 
+                     'F-B', 'Farea', 'Barea', 'Flag', 'cFlag'), 
               dtype=('S70', 'i', 'f4', 'f4', 'f4', 'f4', 'f4', 'i', 'i'))
     for f in fitsfiles: 
         basename = os.path.basename(f)
@@ -629,8 +629,11 @@ def main():
         if not os.path.isfile(filename):
             print "File not found! Running SExtractor before proceeding."
             print "Cleaning ", os.path.basename(f)
-            fidx,fdist,bdist,fbdist,farea,barea,flag,aflag = utils2.clean_frame(f, outdir)
-            t.add_row((basename, fidx, fdist, bdist, fbdist, farea, barea, flag, aflag))
+            fidx,fdist,bdist,fbdist,farea,barea,flag,cflag = utils2.clean_frame(f, outdir)
+            #print basename, fidx, fdist, bdist, fbdist, farea, barea, flag, cflag
+            t.add_row((basename, fidx, fdist, bdist, fbdist, farea, barea, flag, cflag))
+
+            #pdb.set_trace()
         #else:
         # run everything else
         #print "Running", os.path.basename(f)
@@ -639,7 +642,7 @@ def main():
         #hdulist.close()
 
 
-    t.write('data.txt', format='ascii.fixed_width', delimiter='')
+    t.write('data5.txt', format='ascii.fixed_width', delimiter='')
     #info = Table(rows=[g.__dict__ for g in galaxies])
     #info.write(args.output, overwrite=True)
 

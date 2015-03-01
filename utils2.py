@@ -36,7 +36,7 @@ def clean_pixels(data, mask, segmap):
     return data
 
 def clean_image(image, SEseg, SEcat, idx, bkgseg):
-    mask = np.where((SEseg != SEcat[num][idx]) & (SEseg != 0)) 
+    mask = np.where((SEseg != SEcat['NUMBER'][idx]) & (SEseg != 0)) 
     image = clean_pixels(image, mask, bkgseg)
     return image
 
@@ -59,7 +59,8 @@ def closest_above_thresh(SEcat, thing, center, coords, threshold=50., k=10):
 
     indexes, distances = find_closest(center, coords, k)
     things = SEcat[thing][indexes]
-    if any(thing > threshold):
+    if np.any(np.array(things) > threshold):
+        #pdb.set_trace()
         Dist = np.min(distances[np.where(things>threshold)])
         Index = indexes[distances==Dist][0]
         Coord = coords[Index]
@@ -70,7 +71,7 @@ def closest_above_thresh(SEcat, thing, center, coords, threshold=50., k=10):
         Dist = distances[0]
         Index = indexes[0]
         Coord = coords[Index]
-        Thing = thing[0]
+        Thing = things[0]
         Flag = 1
     return Dist, Index, Coord, Thing, Flag
 
@@ -93,8 +94,6 @@ def clean_frame(image, outdir, sep=17.):
 
     # initialize some shit for laterz
     Flag = 0
-    center = [img.shape[0]/2., img.shape[1]/2.]
-    Bdist = center[0]
     Barea, B2dist = 0., 0.
 
     # commonly used SE keywords
@@ -121,6 +120,8 @@ def clean_frame(image, outdir, sep=17.):
     bseg, fseg = fits.getdata(segnames[0]), fits.getdata(segnames[1]) 
     bcat, fcat = fits.getdata(catnames[0]), fits.getdata(catnames[1])
 
+    center = [img.shape[0]/2., img.shape[1]/2.]
+    Bdist = center[0]
 
     # test BRIGHT segmap for any objects whatsoever
     if np.any(np.nonzero(bseg)):
@@ -154,17 +155,36 @@ def clean_frame(image, outdir, sep=17.):
             Flag, mode = 1, 'FAINT'
 
         if (Bdist < sep) & (Fdist > sep):
+            # try running this as a two-stage thing as well 
+            # see counterpart in the DIST > sep section below
             cln = clean_image(cln, bseg, bcat, BIndex, fseg)
             Flag, mode = 2, 'BRIGHT'
 
         if (Bdist > sep) & (Fdist < sep):
+            ''' There aren't many of these
+            They're oddballs but most are well cleaned in FAINT
+            '''
             cln = clean_image(cln, fseg, fcat, FIndex, fseg)
             Flag, mode = 7, 'FAINT'
 
         if (Bdist > sep) & (Fdist > sep):
+            ''' If it's not detected in BRIGHT - should run SE in SMOOTH mode
+            '''
+            run_sextractor.run_SE(image, 'SMOOTH', outdir)
+            sseg, scat = fits.getdata(segnames[2]), fits.getdata(catnames[2])
+            SIndex, Sdist = find_closest(center, zip(scat[x], scat[y]))
+            cln = clean_image(cln, sseg, scat, SIndex, sseg)
             cln = clean_image(cln, bseg, bcat, BIndex, fseg)
-            Flag, mode = 8, 'BRIGHT'
 
+            cln_sv = fits.ImageHDU(data=cln, name='MID_CLN')
+            cln_sv.writeto(outname+'_mid_cln.fits', output_verify='silentfix', 
+                           clobber=True)
+            run_sextractor.run_SE(outname+'_mid_cln.fits', 'FAINT', outdir)
+            f2seg, f2cat = fits.getdata(segnames[1]), fits.getdata(catnames[1])
+            F2Index, F2dist = find_closest(center, zip(f2cat[x], f2cat[y]))
+            cln = clean_image(cln, f2seg, f2cat, F2Index, f2seg)
+            Flag, mode = 8, 'SMOOTH'
+            
     else:
         # I don't think this one can ever happen....
         if  (Bdist < sep) & (Fdist < sep):
@@ -180,23 +200,29 @@ def clean_frame(image, outdir, sep=17.):
               1. Clean on BRIGHT then 
               2. Run SE again in FAINT mode and clean on that. 
             '''
-            if (Barea > 0.6*Farea) & (Barea < Farea):
-                cln = clean_image(cln, fseg, fcat, FIndex, fseg)
 
-            else:
-                cln = clean_image(cln, bseg, bcat, BIndex, fseg)
-                
-                # run SE again in FAINT
-                run_sextractor.run_SE(image, 'FAINT', outdir)
-                f2seg, f2cat = fits.getdata(segnames[2]),fits.getdata(catnames[2])
-                F2Index, F2dist = find_closest(center, zip(scat[x], scat[y]))
+            #if (Barea > 0.6*Farea) & (Barea < Farea):
+            #    cln = clean_image(cln, fseg, fcat, FIndex, fseg)
 
-                cln = clean_image(cln, f2seg, f2cat, F2Index, f2seg)
-
+            #else:
+            cln = clean_image(cln, bseg, bcat, BIndex, fseg)
+            #save this image so that I can run SE on it
+            cln_sv = fits.ImageHDU(data=cln, name='MID_CLN')
+            cln_sv.writeto(outname+'_mid_cln.fits', output_verify='silentfix',
+                           clobber=True)
+            
+            # run SE again in FAINT
+            run_sextractor.run_SE(outname+'_mid_cln.fits', 'FAINT', outdir)
+            f2seg, f2cat = fits.getdata(segnames[1]),fits.getdata(catnames[1])
+            F2Index, F2dist = find_closest(center, zip(f2cat[x], f2cat[y]))
+            cln = clean_image(cln, f2seg, f2cat, F2Index, f2seg)
+            
             Flag, mode = 4, 'FAINT'
  
         if  (Bdist > sep) & (Fdist < sep):
-            # not detected in BRIGHT but it is in FAINT -- Smooth first?
+            ''' These are mostly faint objects not detected in BRIGHT
+            run SE in SMOOTH mode and then clean
+            '''
             run_sextractor.run_SE(image, 'SMOOTH', outdir)
             sseg, scat = fits.getdata(segnames[2]), fits.getdata(catnames[2])
             SIndex, Sdist = find_closest(center, zip(scat[x], scat[y]))
@@ -205,31 +231,16 @@ def clean_frame(image, outdir, sep=17.):
             Flag, mode = 5, 'SMOOTH'
 
         if  (Bdist > sep) & (Fdist > sep):
-            # if central object not found in BRIGHT and not well 
-            # detected in FAINT
-                       
-            run_sextractor.run_SE(image, 'SMOOTH', outdir)
-            sseg, scat = fits.getdata(segnames[2]), fits.getdata(catnames[2])
-            SIndex, Sdist = find_closest(center, zip(scat[x], scat[y]))
+            ''' this is mostly a garbage bin of crap 
+            any object in here needs to be flagged and is likely not a true
+            galaxy at all!
+            '''
+            #run_sextractor.run_SE(image, 'SMOOTH', outdir)
+            #sseg, scat = fits.getdata(segnames[2]), fits.getdata(catnames[2])
+            #SIndex, Sdist = find_closest(center, zip(scat[x], scat[y]))
 
-            cln = clean_image(cln, sseg, scat, SIndex, sseg)
-            Flag, mode = 6, 'SMOOTH'
-
-    # Now that we've done the cleaning -- Let's test it! 
-    # Run SE again in FAINT. If nothing above the min area is found near the 
-    # center of the image then we OVERCLEANED. FLAG THIS.
-    run_sextractor.run_SE(cln, 'FAINT', outdir)
-    tseg = fits.getdata(outname+'_faint_seg_faint.fits')
-    tcat = fits.getdata(outname+'_faint_cat_faint.fits')
-
-    coords = zip(tcat[x], tcat[y])
-    Tdist, TIndex, TCoord, Tarea, tFlag = closest_above_thresh(tcat, area, 
-                                                               center, coords)
-    ocln_flag = 0
-    if Tdist > sep: 
-        print 'OVERCLEANED!!!'
-        ocln_flag = 1
-
+            cln = clean_image(cln, fseg, fcat, FIndex, fseg)
+            Flag, mode = 6, 'FAINT'
 
     if mode == 'BRIGHT':
         ihdr.set('SE_MODE', 'BRIGHT', 'Sextractor mode used to clean image')
@@ -266,13 +277,32 @@ def clean_frame(image, outdir, sep=17.):
     newthing.update_extend()
     newthing.writeto(outdir+'f_'+basename+'.fits', output_verify='silentfix', 
                      clobber=True)
-    
+
+
     # clean up directory
-    #os.system("rm "+outdir+"*bright*.fits")
+    os.system("rm "+outdir+"*bright*.fits")
     os.system("rm "+outdir+"*faint*.fits")
     os.system("rm "+outdir+"*smooth*.fits")
 
-    return FIndex, Fdist, Bdist, DIST, Farea, Barea, Flag, aFlag, ocln_flag
+    # Now that we've done the cleaning -- Let's test it! 
+    # Run SE again in FAINT. If nothing above the min area is found near the 
+    # center of the image then we OVERCLEANED. FLAG THIS.
+    
+    run_sextractor.run_SE(outdir+'f_'+basename+'.fits[1]', 'FAINT', outdir)
+    tseg = fits.getdata(outdir+'f_'+basename+'_faint_seg.fits')
+    tcat = fits.getdata(outdir+'f_'+basename+'_faint_cat.fits')
+
+    coords = zip(tcat[x], tcat[y])
+    index, dist = find_closest(center, coords)
+    test_area = tcat[area][index]
+    #Tdist, TIndex, TCoord, Tarea, tFlag = closest_above_thresh(tcat, area, 
+    #                                                           center, coords)
+    ocln_flag = 0
+    if test_area < 50.: 
+        print 'OVERCLEANED!!!'
+        ocln_flag = 1
+
+    return FIndex, Fdist, Bdist, DIST, Farea, Barea, Flag, ocln_flag
 
 
 def shift_image(data, deltax, deltay, phase=0, nthreads=1, use_numpy_fft=False,

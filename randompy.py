@@ -483,8 +483,8 @@ def analyse_cleaning():
     5:  DIST > 10 & Bdist > 10 & Fdist < 10
     6:  DIST > 10 & Bdist > 10 & Fdist > 10
     '''
-    flagtype = [1,2,3.1, 3.2,4,5,6,7,8]
-    dat = Table.read('data.txt', format='ascii')
+    flagtype = [1,2,3,4,5,6,7,8]
+    dat = Table.read('data4.txt', format='ascii')
     
     ff = dat['Flag']
 
@@ -501,9 +501,9 @@ def analyse_cleaning():
     datf = {}
     for f in flagtype:
         datf["flag"+str(f)] = dat['name', 'Fdist', 'Bdist', \
-                                 'F-B', 'Farea'][ff == f]
+                                  'Fidx', 'Farea', 'Barea'][ff == f]
 
-    colors=['red', 'blue', 'green','green','yellow', 
+    colors=['red', 'blue', 'green','yellow', 
             'cyan', 'purple','black', 'magenta']
 
     plt.figure()
@@ -515,8 +515,8 @@ def analyse_cleaning():
     plt.xlabel('Fdist')
     plt.ylabel('Bdist')
     plt.legend()
-    plt.savefig('FBdist_flags_new.png')
-    plt.close()
+    plt.savefig('FBdist_flags_data4.png')
+    #plt.close()
     #plt.show()
     
     for idx, f in enumerate(flagtype):
@@ -535,7 +535,7 @@ def analyse_cleaning():
         plt.xlabel('Farea')
         plt.ylabel('Proportion of subclass: Flag')
         plt.close()
-    #plt.show()
+    plt.show()
 
     pdb.set_trace()
 
