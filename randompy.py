@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 from math import pi
 import pdb #"""for doing an IDL-like stop"""
 from utils2 import find_closest
-
+import run_sextractor
 
 
 def comparecatalogs():
@@ -484,7 +484,7 @@ def analyse_cleaning():
     6:  DIST > 10 & Bdist > 10 & Fdist > 10
     '''
     flagtype = [1,2,3,4,5,6,7,8]
-    dat = Table.read('data4.txt', format='ascii')
+    dat = Table.read('data5.txt', format='ascii')
     
     ff = dat['Flag']
 
@@ -516,7 +516,7 @@ def analyse_cleaning():
     plt.ylabel('Bdist')
     plt.legend()
     plt.savefig('FBdist_flags_data4.png')
-    #plt.close()
+    plt.close()
     #plt.show()
     
     for idx, f in enumerate(flagtype):
@@ -535,35 +535,19 @@ def analyse_cleaning():
         plt.xlabel('Farea')
         plt.ylabel('Proportion of subclass: Flag')
         plt.close()
-    plt.show()
+    #plt.show()
+
+
+    # test SE 
+    images = datf['flag4']['name']
+    for i in images:
+        i = os.path.splitext(i)[0]
+        #pdb.set_trace()
+        name = 'output/datacube5/'+i+'_mid_cln.fits'
+        run_sextractor.run_SE(name, 'FAINT')
 
     pdb.set_trace()
 
-    b2dist = dat['B2dist']
-    #plt.figure()
-    #plt.hist(b2dist, bins=np.arange(min(b2dist), max(b2dist)+.1, .1))
-    #plt.xlim(5, 50)
-    #plt.ylim(0,10)
-    #plt.show()
-
-    plt.figure()
-    plt.plot(dat['Fdist'], dat['Bdist'], 'ro')
-    plt.xlabel('Fdist')
-    plt.ylabel('Bdist')
-    #plt.show()
-    
-    plt.figure()
-    bins = np.arange(0, 251,5)
-    plt.hist(dat['Bdist'], bins=bins, color='blue', label='Bdist')
-    plt.hist(dat['Fdist'], bins=bins, color='red', label='Fdist')
-    plt.legend(loc='best')
-    plt.show()
-    
-    #pdb.set_trace()
-    near = dat[np.where((b2dist >= 10.) & (b2dist < 20.))]
-    med = dat[np.where((b2dist >= 20) & (b2dist < 30.))]
-
-    pdb.set_trace()
 
     #f = open('testB2dist_med.sh', 'wb')
     
@@ -601,7 +585,7 @@ def main():
     #plotgini(zestdata, dataset)
 
     #plotM20(zestdata, dataset)
-     
+
     analyse_cleaning()
     #pdb.set_trace()
     

@@ -6,11 +6,14 @@ import pyfits
 import ConfigParser
 import pdb
 
-def single_SE(image, outstr, outdir='', params={}):
+def single_SE(image, outstr, outdir='', params={}, outstr2=0):
     basename = os.path.basename(os.path.splitext(image)[0])
-    #pdb.set_trace()
-    cat = '%s%s_%s_cat.fits' %(outdir, basename, outstr)
-    seg = '%s%s_%s_seg.fits' %(outdir, basename, outstr)
+    if isinstance(outstr2, int):
+        cat = '%s%s_%s_cat.fits' %(outdir, basename, outstr)
+        seg = '%s%s_%s_seg.fits' %(outdir, basename, outstr)
+    else:
+        cat = '%s%s_%s_%s_cat.fits' %(outdir, basename, outstr, outstr2)
+        seg = '%s%s_%s_%s_seg.fits' %(outdir, basename, outstr, outstr2)
     
     params['-catalog_name'] = cat
     params['-checkimage_type'] = 'segmentation'
@@ -23,7 +26,7 @@ def single_SE(image, outstr, outdir='', params={}):
 
     subprocess.check_call(args)
 
-def run_SE(image, section, outdir):
+def run_SE(image, section, outdir='', outstr2=0):
     ''' Run SExtractor on COSMOS/ZEST cutouts using the parameters
         in se_param.cfg
          
@@ -52,4 +55,8 @@ def run_SE(image, section, outdir):
     if section == 'SMOOTH':
         outstr = 'smooth'
     
-    single_SE(image, outstr, outdir, params)
+    if isinstance(outstr2, int):
+        single_SE(image, outstr, outdir, params)
+    else:
+        single_SE(image, outstr, outdir, params, outstr2)
+        

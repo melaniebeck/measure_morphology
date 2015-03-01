@@ -617,7 +617,7 @@ def main():
     fitsfiles = sorted(glob.glob(args.directory+'*.fits'))
     #fitsfiles = sorted(glob.glob(args.directory))
 
-    outdir = 'output/datacube5/'
+    outdir = 'output/datacube6/'
 
     galaxies = []
     t = Table(names=('name', 'Fidx', 'Fdist', 'Bdist', 
@@ -642,7 +642,7 @@ def main():
         #hdulist.close()
 
 
-    t.write('data5.txt', format='ascii.fixed_width', delimiter='')
+    t.write('data6.txt', format='ascii.fixed_width', delimiter='')
     #info = Table(rows=[g.__dict__ for g in galaxies])
     #info.write(args.output, overwrite=True)
 
