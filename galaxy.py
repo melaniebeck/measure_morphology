@@ -18,7 +18,8 @@ from skimage import measure
 from photutils import aperture_photometry, EllipticalAnnulus, \
                               EllipticalAperture, CircularAnnulus, \
                               CircularAperture
-import utils2
+import utils
+import clean
 
 class Galaxy(object):
 
@@ -282,7 +283,7 @@ class Galaxy(object):
         while True:
             ga = []
             dd = []
-            deltas, points = utils2.generate_deltas(imgcenter_sm, .3, delta)
+            deltas, points = utils.generate_deltas(imgcenter_sm, .3, delta)
 
             for d, p in zip(deltas, points): 
                 # if the point already exists in the dictionary, 
@@ -452,7 +453,7 @@ class Galaxy(object):
         gflag = 0
 
         # create aperture at center of galaxy
-        ap = utils2.EllipticalAperture( (self.x, self.y), self.rpet, \
+        ap = utils.EllipticalAperture( (self.x, self.y), self.rpet, \
                                             self.rpet/self.e, self.theta, \
                                             clean_dat)
 
@@ -502,7 +503,7 @@ class Galaxy(object):
 
 
         # create aperture at center of galaxy (mask)
-        ap = utils2.EllipticalAperture(imgcenter, self.rpet, \
+        ap = utils.EllipticalAperture(imgcenter, self.rpet, \
                                             self.rpet/self.e, self.theta, \
                                             clean_dat)
 
@@ -512,7 +513,7 @@ class Galaxy(object):
         #  minimize the galaxy asymmetry
         while True:
             mm = []
-            deltas, points = utils2.generate_deltas(imgcenter, .3, delta)
+            deltas, points = utils.generate_deltas(imgcenter, .3, delta)
 
             for d, p in zip(deltas, points): 
                 # if the point already exists in the dictionary... 
@@ -552,7 +553,7 @@ class Galaxy(object):
         # we can calculate M20!
 
         # create aperture/dist map at center that minimizes Mtot
-        m20_ap = utils2.EllipticalAperture(center, self.rpet, \
+        m20_ap = utils.EllipticalAperture(center, self.rpet, \
                                             self.rpet/self.e, self.theta, \
                                             clean_dat)
         m20dist = (x-center[0])*(x-center[0]) + (y-center[1])*(y-center[1])
@@ -617,7 +618,7 @@ def main():
     fitsfiles = sorted(glob.glob(args.directory+'*.fits'))
     #fitsfiles = sorted(glob.glob(args.directory))
 
-    outdir = 'output/datacube6/'
+    outdir = 'output/datacube7/'
 
     galaxies = []
     t = Table(names=('name', 'Fidx', 'Fdist', 'Bdist', 
@@ -629,9 +630,10 @@ def main():
         if not os.path.isfile(filename):
             print "File not found! Running SExtractor before proceeding."
             print "Cleaning ", os.path.basename(f)
-            fidx,fdist,bdist,fbdist,farea,barea,flag,cflag = utils2.clean_frame(f, outdir)
-            #print basename, fidx, fdist, bdist, fbdist, farea, barea, flag, cflag
-            t.add_row((basename, fidx, fdist, bdist, fbdist, farea, barea, flag, cflag))
+            fidx,fdist,bdist,fbdist,farea,barea,flag,cflag = \
+                                            clean.clean_frame(f, outdir)
+            t.add_row((basename, fidx, fdist, bdist, fbdist, 
+                       farea, barea, flag, cflag))
 
             #pdb.set_trace()
         #else:
@@ -642,7 +644,7 @@ def main():
         #hdulist.close()
 
 
-    t.write('data6.txt', format='ascii.fixed_width', delimiter='')
+    t.write('data7.txt', format='ascii.fixed_width', delimiter='')
     #info = Table(rows=[g.__dict__ for g in galaxies])
     #info.write(args.output, overwrite=True)
 
@@ -658,13 +660,13 @@ if __name__ == '__main__':
         imgcenter = np.array([shape[0]/2., shape[1]/2.])
 
         # create aperture at center of image
-        ap = utils2.EllipticalAperture( imgcenter, 1.5*self.rpet, 
+        ap = utils.EllipticalAperture( imgcenter, 1.5*self.rpet, 
                                         1.5*self.rpet/self.e, self.theta, clean_dat)
         # create galaxy and background masks from aperture
         apmask = ap.aper.astype('float')
         bkgmask = np.logical_not(apmask).astype('float')
 
-        scale = utils2.scale(apmask, clean_dat.shape)
+        scale = utils.scale(apmask, clean_dat.shape)
         delta = imgcenter - galcenter
  
         prior_points = np.zeros((9,2))
@@ -672,11 +674,11 @@ if __name__ == '__main__':
         counter = 0
         while True:
             # generate shifts from initial pixel (delta) to 8 surrounding "pixels"
-            deltas, points = utils2.generate_deltas(imgcenter, .2, delta)
+            deltas, points = utils.generate_deltas(imgcenter, .2, delta)
             # find asymmetry in the new set of "pixels" -- need to optimize this!!!
             for idx, d in enumerate(deltas):
                 # measure the asymmetry for 9 locations at and around the original delta
-                asym[idx] = utils2.measure_asymmetry(clean_dat, apmask, bkgmask, d, scale)
+                asym[idx] = utils.measure_asymmetry(clean_dat, apmask, bkgmask, d, scale)
 
             minloc = np.where(asym[:,0] == asym[:,0].min())[0]
             minasym = asym[minloc[0]]

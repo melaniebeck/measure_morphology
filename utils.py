@@ -58,22 +58,31 @@ def closest_above_thresh(SEcat, thing, center, coords, threshold=50., k=10):
     Flag = 0
 
     indexes, distances = find_closest(center, coords, k)
-    things = SEcat[thing][indexes]
+    idxs, dists = indexes[distances != np.inf], distances[distances != np.inf]
+    things = SEcat[thing][idxs]
     if np.any(np.array(things) > threshold):
-        #pdb.set_trace()
-        Dist = np.min(distances[np.where(things>threshold)])
-        Index = indexes[distances==Dist][0]
+        Dist = np.min(dists[things > threshold])
+        Index = idxs[dists==Dist][0]
         Coord = coords[Index]
         Thing = SEcat[thing][Index]
         if Thing != things[0]:
             Flag = 1
     else:
-        Dist = distances[0]
-        Index = indexes[0]
+        Dist = dists[0]
+        Index = idxs[0]
         Coord = coords[Index]
         Thing = things[0]
         Flag = 1
     return Dist, Index, Coord, Thing, Flag
+
+def savedata(mode, galnumber, data=[], names=[]):
+    datacube=[]
+    ihdr.set('SE_MODE', mode, 'Sextractor mode used to clean image')
+    ihdr.set('SECATIDX', galnumber, 
+             'Index in'+mode+'catalog denoting gal of interest')
+    for datum, name in zip(data, names):
+        datacube.append(fits.ImageHDU(data=datum, name=name))
+    return datacube
 
 def clean_frame(image, outdir, sep=17.):
     '''
@@ -174,7 +183,8 @@ def clean_frame(image, outdir, sep=17.):
             cln = clean_image(cln, fseg, fcat, FIndex, fseg)
             Flag, mode = 7, 'FAINT'
 
-        # FLAG 8: TWO STAGE CLEANING -- BRIGHT --> FAINT --> RUN SE AGAIN IN FAINT
+        # FLAG 8: TWO STAGE CLEANING -- BRIGHT --> FAINT --> 
+        # RUN SE AGAIN IN FAINT
         if (Bdist > sep) & (Fdist > sep):
             ''' If it's not detected in BRIGHT - should run SE in SMOOTH mode
             no we shouldn't. :(
@@ -184,18 +194,21 @@ def clean_frame(image, outdir, sep=17.):
             #SIndex, Sdist = find_closest(center, zip(scat[x], scat[y]))
             #cln = clean_image(cln, sseg, scat, SIndex, sseg)
             cln = clean_image(cln, bseg, bcat, BIndex, fseg)
-            cln = clean_image(cln, fseg, fcat, FIndex, fseg)
 
-            cln_sv = fits.ImageHDU(data=cln, name='MID_CLN')
+            cln_sv = cln.copy()
+            cln_sv = fits.ImageHDU(data=cln_sv, name='MID_CLN')
             cln_sv.writeto(outname+'_mid_cln.fits', output_verify='silentfix', 
                            clobber=True)
 
             # run SE again in FAINT
-            run_sextractor.run_SE(outname+'_mid_cln.fits', 'FAINT', outdir, outstr2='run2')
-            f2seg, f2cat = fits.getdata(segnames[1]),fits.getdata(catnames[1])
+            run_sextractor.run_SE(outname+'_mid_cln.fits', 'FAINT', 
+                                  outdir, outstr2='run2')
+            f2seg = fits.getdata(outname+'_mid_cln_faint_run2_seg.fits')
+            f2cat = fits.getdata(outname+'_mid_cln_faint_run2_cat.fits')
+            coords = zip(f2cat[x], f2cat[y])
             # find closest obj to center with area above threshold
-            Fdist, FIndex, FCoord, Farea, aFlag = closest_above_thresh(f2cat, area, 
-                                                                       center, coords)
+            Fdist, FIndex, FCoord, Farea, aFlag = \
+                        closest_above_thresh(f2cat, area, center, coords, k=5)
             cln = clean_image(cln, f2seg, f2cat, FIndex, f2seg)
             Flag, mode = 8, 'FAINT2'
             
@@ -218,16 +231,20 @@ def clean_frame(image, outdir, sep=17.):
             cln = clean_image(cln, bseg, bcat, BIndex, fseg)
 
             #save this image so that I can run SE on it
-            cln_sv = fits.ImageHDU(data=cln, name='MID_CLN')
+            cln_sv = cln.copy()
+            cln_sv = fits.ImageHDU(data=cln_sv, name='MID_CLN')
             cln_sv.writeto(outname+'_mid_cln.fits', output_verify='silentfix',
                            clobber=True)
             
             # run SE again in FAINT
-            run_sextractor.run_SE(outname+'_mid_cln.fits', 'FAINT', outdir, outstr2='run2')
-            f2seg, f2cat = fits.getdata(segnames[1]),fits.getdata(catnames[1])
+            run_sextractor.run_SE(outname+'_mid_cln.fits', 'FAINT', 
+                                  outdir, outstr2='run2')
+            f2seg = fits.getdata(outname+'_mid_cln_faint_run2_seg.fits')
+            f2cat = fits.getdata(outname+'_mid_cln_faint_run2_cat.fits')
+            coords = zip(f2cat[x], f2cat[y])
             # find closest obj to center with area above threshold
-            Fdist, FIndex, FCoord, Farea, aFlag = closest_above_thresh(f2cat, area, 
-                                                                       center, coords)
+            Fdist, FIndex, FCoord, Farea, aFlag = \
+                        closest_above_thresh(f2cat, area, center, coords, k=5)
             cln = clean_image(cln, f2seg, f2cat, FIndex, f2seg)
             Flag, mode = 4, 'FAINT2'
  
@@ -256,65 +273,46 @@ def clean_frame(image, outdir, sep=17.):
             cln = clean_image(cln, fseg, fcat, FIndex, fseg)
             Flag, mode = 6, 'FAINT'
 
-    datacube = []
+    # Now that we've done the cleaning -- Let's test it!    
+    run_sextractor.run_SE(outdir+'f_'+basename+'.fits[1]', 'FAINT', 
+                          outdir, outstr2='test')
+    tseg = fits.getdata(outdir+'f_'+basename+'_faint_test_seg.fits')
+    tcat = fits.getdata(outdir+'f_'+basename+'_faint_test_cat.fits')
 
+    coords = zip(tcat[x], tcat[y])
+    index, dist = find_closest(center, coords, k=10)
+    tarea = tcat[area][index[np.where(dist != np.inf)]]
+
+    # If we find obj near the center is too small then we overcleaned it
+    ocln_flag = 0
+    if (dist[0] < sep) & (tarea[0] < 50.): 
+        print 'OVERCLEANED!!!'
+        ocln_flag = 1
+
+    # If we find large objs far from the center then we didn't clean enough
+    if (np.any(dist[1::] > sep)) & (np.any(tarea[1::] > 100.)):
+        print 'UNDER CLEANED!!'
+        ocln_flag = 2
+
+
+    # Save all major data products
     if mode == 'BRIGHT':
-        ihdr.set('SE_MODE', 'BRIGHT', 'Sextractor mode used to clean image')
-        ihdr.set('SECATIDX', BIndex, 
-                 'Index in BRIGHT catalog denoting gal of interest')
-        '''
-        init2 = fits.ImageHDU(data=bseg, name='BSEG')
-        init3 = fits.ImageHDU(data=fseg, name='FSEG')
-        init4 = fits.TableHDU(data=bcat, name='BCAT')
-        #'''
-        datacube.append(fits.ImageHDU(data=bseg, name='BSEG'))
-        datacube.append(fits.ImageHDU(data=fseg, name='FSEG'))
-        datacube.append(fits.TableHDU(data=bcat, name='BCAT'))
+        datacube = savedata(mode, BIndex, data=[bseg, fseg, bcat], 
+                            names=['BSEG', 'FSEG', 'BCAT'])
 
     elif mode == 'FAINT':
-        ihdr.set('SE_MODE', 'FAINT', 'Sextractor mode used to clean image')
-        ihdr.set('SECATIDX', FIndex, 
-                  'Index in FAINT catalog denoting gal of interest')
-        '''
-        init2 = fits.ImageHDU(data=bseg, name='BSEG') 
-        init3 = fits.ImageHDU(data=fseg, name='FSEG')
-        init4 = fits.TableHDU(data=fcat, name='FCAT') 
-        #'''
-        datacube.append(fits.ImageHDU(data=bseg, name='BSEG'))
-        datacube.append(fits.ImageHDU(data=fseg, name='FSEG'))
-        datacube.append(fits.TableHDU(data=fcat, name='FCAT'))
+        datacube = savedata(mode, FIndex, data=[bseg, fseg, fcat], 
+                            names=['BSEG', 'FSEG', 'FCAT'])
 
     elif mode == 'FAINT2':
-        ihdr.set('SE_MODE', 'TWOSTAGE', 'Sextractor mode used to clean image')
-        ihdr.set('SECATIDX', FIndex,
-                 'Index of galaxy in 2nd stage FAINT catalog')
-        '''
-        init2 = fits.ImageHDU(data=cln_sv, name='MID_CLN')
-        init3 = fits.ImageHDU(data=bseg, name='BSEG') 
-        init4 = fits.ImageHDU(data=fseg, name='FSEG')
-        init5 = fits.ImageHDU(data=f2seg, name='F2SEG')
-        init6 = fits.TableHDU(data=f2cat, name='F2CAT')
-        '''
-        datacube.append(cln_sv)
-        datacube.append(fits.ImageHDU(data=bseg, name='BSEG'))
-        datacube.append(fits.ImageHDU(data=fseg, name='FSEG'))
-        datacube.append(fits.ImageHDU(data=f2seg, name='F2SEG'))
-        datacube.append(fits.TableHDU(data=f2cat, name='F2CAT'))
+        datacube = savedata('TWOSTAGE', FIndex,data=[bseg, fseg, f2seg, f2cat], 
+                            names=['BSEG', 'FSEG', 'F2SEG', 'F2CAT'])
+        datacube.insert(0, cln_sv)
+
 
     elif mode == 'SMOOTH':
-        ihdr.set('SE_MODE', 'SMOOTH', 'Sextractor mode used to clean image')
-        ihdr.set('SECATIDX', FIndex, 
-                 'Index in FAINT catalog denoting gal of interest')
-        '''
-        init2 = fits.ImageHDU(data=bseg, name='BSEG') 
-        init3 = fits.ImageHDU(data=fseg, name='FSEG')
-        init4 = fits.ImageHDU(data=sseg, name='SSEG')
-        init5 = fits.TableHDU(data=scat, name='SCAT') 
-        '''
-        datacube.append(fits.ImageHDU(data=bseg, name='BSEG'))
-        datacube.append(fits.ImageHDU(data=fseg, name='FSEG'))
-        datacube.append(fits.ImageHDU(data=sseg, name='SSEG'))
-        datacube.append(fits.TableHDU(data=scat, name='SCAT'))
+        datacube = savedata(mode, SIndex, data=[bseg, fseg, sseg, scat], 
+                            names=['BSEG', 'FSEG', 'SSEG', 'SCAT'])
 
         
     # SAVE ALL PRODUCTS TO DATA CUBE
@@ -324,7 +322,6 @@ def clean_frame(image, outdir, sep=17.):
     datacube.insert(0, init0)
 
     newthing = fits.HDUList()
-    #for thing in (init0, init1, init2, init3, init4):
     for thing in datacube: 
         newthing.append(thing)
     newthing.update_extend()
@@ -333,27 +330,10 @@ def clean_frame(image, outdir, sep=17.):
 
 
     # clean up directory
-    os.system("rm "+outdir+"*bright*.fits")
-    os.system("rm "+outdir+"*faint*.fits")
-    os.system("rm "+outdir+"*smooth*.fits")
+    #os.system("rm "+outdir+"*bright*.fits")
+    #os.system("rm "+outdir+"*faint*.fits")
+    #os.system("rm "+outdir+"*smooth*.fits")
 
-    # Now that we've done the cleaning -- Let's test it! 
-    # Run SE again in FAINT. If nothing above the min area is found near the 
-    # center of the image then we OVERCLEANED. FLAG THIS.
-    
-    run_sextractor.run_SE(outdir+'f_'+basename+'.fits[1]', 'FAINT', outdir)
-    tseg = fits.getdata(outdir+'f_'+basename+'_faint_seg.fits')
-    tcat = fits.getdata(outdir+'f_'+basename+'_faint_cat.fits')
-
-    coords = zip(tcat[x], tcat[y])
-    index, dist = find_closest(center, coords)
-    test_area = tcat[area][index]
-    #Tdist, TIndex, TCoord, Tarea, tFlag = closest_above_thresh(tcat, area, 
-    #                                                           center, coords)
-    ocln_flag = 0
-    if test_area < 50.: 
-        print 'OVERCLEANED!!!'
-        ocln_flag = 1
 
     return FIndex, Fdist, Bdist, DIST, Farea, Barea, Flag, ocln_flag
 

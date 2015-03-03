@@ -484,7 +484,7 @@ def analyse_cleaning():
     6:  DIST > 10 & Bdist > 10 & Fdist > 10
     '''
     flagtype = [1,2,3,4,5,6,7,8]
-    dat = Table.read('data5.txt', format='ascii')
+    dat = Table.read('data7.txt', format='ascii')
     
     ff = dat['Flag']
 
@@ -505,7 +505,7 @@ def analyse_cleaning():
 
     colors=['red', 'blue', 'green','yellow', 
             'cyan', 'purple','black', 'magenta']
-
+    '''
     plt.figure()
     for idx, f in enumerate(flagtype):
         datname = 'flag'+str(f)
@@ -537,14 +537,25 @@ def analyse_cleaning():
         plt.close()
     #plt.show()
 
+    #'''
+    plt.figure()
+    plt.hist(datf['flag1']['Fdist'], color='red', alpha=.5)
+    plt.hist(datf['flag1']['Bdist'], color='blue', alpha=.5)
+    plt.show()
+    pdb.set_trace()
 
     # test SE 
-    images = datf['flag4']['name']
-    for i in images:
-        i = os.path.splitext(i)[0]
-        #pdb.set_trace()
-        name = 'output/datacube5/'+i+'_mid_cln.fits'
-        run_sextractor.run_SE(name, 'FAINT')
+    images = datf['flag1']['name']
+    for idx, i in enumerate(images):
+        if (idx % 50 == 0):
+            f=open('category1_'+str(idx)+'.sh', 'wb')
+            f.write('ds9s ')
+            f.write('output/datacube7/f_'+i+'[1] ')
+        else:
+            f.write('output/datacube7/f_'+i+'[1] ')
+            if (idx+1) % 50 == 0:
+                f.close()
+    f.close()
 
     pdb.set_trace()
 
