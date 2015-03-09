@@ -57,13 +57,17 @@ def closest_above_thresh(SEcat, thing, center, coords, threshold=50., k=10):
         Flag = 1
     return Dist, Index, Coord, Thing, Flag
 
-def savedata(mode, galnumber, data=[], names=[]):
+def savedata(mode, hdr, galnumber, data=[], names=[]):
     datacube=[]
-    ihdr.set('SE_MODE', mode, 'Sextractor mode used to clean image')
-    ihdr.set('SECATIDX', galnumber, 
+    hdr.set('SE_MODE', mode, 'Sextractor mode used to clean image')
+    hdr.set('SECATIDX', galnumber, 
              'Index in'+mode+'catalog denoting gal of interest')
     for datum, name in zip(data, names):
-        datacube.append(fits.ImageHDU(data=datum, name=name))
+        if name == 'CAT':
+            datacube.append(fits.TableHDU(data=datum, name=name))
+        else:
+            datacube.append(fits.ImageHDU(data=datum, name=name))
+
     return datacube
 
 def clean_frame(image, outdir, sep=17.):
@@ -84,7 +88,7 @@ def clean_frame(image, outdir, sep=17.):
     #'''
 
     # initialize some shit for laterz
-    Flag = 0
+    category = 0
     Barea, B2dist = 0., 0.
 
     # commonly used SE keywords
@@ -141,7 +145,7 @@ def clean_frame(image, outdir, sep=17.):
         # FLAG 1: MOST COMMON CATEGORY --> CLEAN IN FAINT MODE
         if (Bdist < sep) & (Fdist < sep):
             cln = clean_image(cln, fseg, fcat, FIndex, fseg)
-            Flag, mode = 1, 'FAINT'
+            category, mode = 1, 'FAINT'
 
         # FLAG 2: CLEAN IN BRIGHT MODE & FLAG THESE!!
         if (Bdist < sep) & (Fdist > sep):
@@ -152,7 +156,7 @@ def clean_frame(image, outdir, sep=17.):
             JUST FLAG THIS BITCH
             '''
             cln = clean_image(cln, bseg, bcat, BIndex, fseg)
-            Flag, mode = 2, 'BRIGHT'
+            category, mode = 2, 'BRIGHT'
 
         # FLAG 7: CLEAN IN FAINT MODE
         if (Bdist > sep) & (Fdist < sep):
@@ -160,10 +164,9 @@ def clean_frame(image, outdir, sep=17.):
             They're oddballs but most are well cleaned in FAINT
             '''
             cln = clean_image(cln, fseg, fcat, FIndex, fseg)
-            Flag, mode = 7, 'FAINT'
+            category, mode = 7, 'FAINT'
 
-        # FLAG 8: TWO STAGE CLEANING -- BRIGHT --> FAINT --> 
-        # RUN SE AGAIN IN FAINT
+        # FLAG 8: TWO STAGE CLEANING -- BRIGHT --> RUN SE AGAIN IN FAINT
         if (Bdist > sep) & (Fdist > sep):
             ''' If it's not detected in BRIGHT - should run SE in SMOOTH mode
             no we shouldn't. :(
@@ -189,13 +192,13 @@ def clean_frame(image, outdir, sep=17.):
             Fdist, FIndex, FCoord, Farea, aFlag = \
                         closest_above_thresh(f2cat, area, center, coords, k=5)
             cln = clean_image(cln, f2seg, f2cat, FIndex, f2seg)
-            Flag, mode = 8, 'FAINT2'
+            category, mode = 8, 'FAINT2'
             
     else:
         # FLAG 3: SHOULD NEVER HAPPEN
         if  (Bdist < sep) & (Fdist < sep):
             cln = clean_image(cln, bseg, bcat, BIndex, fseg)
-            Flag, mode = 3, 'BRIGHT'
+            category, mode = 3, 'BRIGHT'
 
         # FLAG 4: TWO STAGE CLEANING - BRIGHT --> RUN SE AGAIN IN FAINT
         if  (Bdist < sep) & (Fdist > sep):
@@ -225,7 +228,7 @@ def clean_frame(image, outdir, sep=17.):
             Fdist, FIndex, FCoord, Farea, aFlag = \
                         closest_above_thresh(f2cat, area, center, coords, k=5)
             cln = clean_image(cln, f2seg, f2cat, FIndex, f2seg)
-            Flag, mode = 4, 'FAINT2'
+            category, mode = 4, 'FAINT2'
  
         # FLAG 5: CLEAN IN SMOOTH MODE
         if  (Bdist > sep) & (Fdist < sep):
@@ -237,7 +240,7 @@ def clean_frame(image, outdir, sep=17.):
             SIndex, Sdist = find_closest(center, zip(scat[x], scat[y]))
 
             cln = clean_image(cln, sseg, scat, SIndex, sseg)
-            Flag, mode = 5, 'SMOOTH'
+            category, mode = 5, 'SMOOTH'
 
         # FLAG 6: CLEAN IN FAINT MODE -- ALL GARBAGE ANYWAY
         if  (Bdist > sep) & (Fdist > sep):
@@ -250,7 +253,7 @@ def clean_frame(image, outdir, sep=17.):
             #SIndex, Sdist = find_closest(center, zip(scat[x], scat[y]))
 
             cln = clean_image(cln, fseg, fcat, FIndex, fseg)
-            Flag, mode = 6, 'FAINT'
+            category, mode = 6, 'FAINT'
 
     # Now that we've done the cleaning -- Let's test it!    
     run_sextractor.run_SE(outdir+'f_'+basename+'.fits[1]', 'FAINT', 
@@ -263,42 +266,42 @@ def clean_frame(image, outdir, sep=17.):
     tarea = tcat[area][index[np.where(dist != np.inf)]]
 
     # If we find obj near the center is too small then we overcleaned it
-    ocln_flag = 0
+    oFlag = 0
     if (dist[0] < sep) & (tarea[0] < 50.): 
         print 'OVERCLEANED!!!'
-        ocln_flag = 1
+        oFlag = 1
 
+    uFlag = 0
     # If we find large objs far from the center then we didn't clean enough
-    if (np.any(dist[1::] > sep)) & (np.any(tarea[1::] > 100.)):
+    if (np.any(dist[1::] > 2*sep)) & (np.any(tarea[1::] > 100.)):
         print 'UNDER CLEANED!!'
-        ocln_flag = 2
+        uFlag = 2
 
 
     # Save all major data products
     if mode == 'BRIGHT':
-        datacube = savedata(mode, BIndex, data=[bseg, fseg, bcat], 
-                            names=['BSEG', 'FSEG', 'BCAT'])
+        datacube = savedata(mode, ihdr, BIndex, data=[bseg, fseg, bcat], 
+                            names=['BSEG', 'FSEG', 'CAT'])
 
     elif mode == 'FAINT':
-        datacube = savedata(mode, FIndex, data=[bseg, fseg, fcat], 
-                            names=['BSEG', 'FSEG', 'FCAT'])
+        datacube = savedata(mode, ihdr, FIndex, data=[bseg, fseg, fcat], 
+                            names=['BSEG', 'FSEG', 'CAT'])
 
     elif mode == 'FAINT2':
-        datacube = savedata('TWOSTAGE', FIndex,data=[bseg, fseg, f2seg, f2cat], 
-                            names=['BSEG', 'FSEG', 'F2SEG', 'F2CAT'])
+        datacube = savedata('TWOSTAGE', ihdr, FIndex, 
+                            data=[bseg, fseg, f2seg, f2cat], 
+                            names=['BSEG', 'FSEG', 'F2SEG', 'CAT'])
         datacube.insert(0, cln_sv)
 
 
     elif mode == 'SMOOTH':
-        datacube = savedata(mode, SIndex, data=[bseg, fseg, sseg, scat], 
-                            names=['BSEG', 'FSEG', 'SSEG', 'SCAT'])
+        datacube = savedata(mode, ihdr, SIndex, data=[bseg, fseg, sseg, scat], 
+                            names=['BSEG', 'FSEG', 'SSEG', 'CAT'])
 
         
     # SAVE ALL PRODUCTS TO DATA CUBE
-    init0 = fits.ImageHDU(data=img, header=ihdr, name='ORG')
-    init1 = fits.ImageHDU(data=cln, header=ihdr, name='CLN')
-    datacube.insert(0, init1)
-    datacube.insert(0, init0)
+    datacube.insert(0, fits.ImageHDU(data=img, header=ihdr, name='ORG'))
+    datacube.insert(0, fits.ImageHDU(data=cln, header=ihdr, name='CLN'))
 
     newthing = fits.HDUList()
     for thing in datacube: 
@@ -313,6 +316,6 @@ def clean_frame(image, outdir, sep=17.):
     #os.system("rm "+outdir+"*faint*.fits")
     #os.system("rm "+outdir+"*smooth*.fits")
 
-
-    return FIndex, Fdist, Bdist, DIST, Farea, Barea, Flag, ocln_flag
+    #FIndex, Fdist, Bdist, DIST, Farea, Barea,
+    return  [category, oFlag, uFlag]
 

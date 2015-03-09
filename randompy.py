@@ -14,7 +14,7 @@ from random import gauss
 import matplotlib.pyplot as plt
 from math import pi
 import pdb #"""for doing an IDL-like stop"""
-from utils2 import find_closest
+from utils import find_closest
 import run_sextractor
 
 
