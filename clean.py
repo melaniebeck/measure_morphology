@@ -255,28 +255,6 @@ def clean_frame(image, outdir, sep=17.):
             cln = clean_image(cln, fseg, fcat, FIndex, fseg)
             category, mode = 6, 'FAINT'
 
-    # Now that we've done the cleaning -- Let's test it!    
-    run_sextractor.run_SE(outdir+'f_'+basename+'.fits[1]', 'FAINT', 
-                          outdir, outstr2='test')
-    tseg = fits.getdata(outdir+'f_'+basename+'_faint_test_seg.fits')
-    tcat = fits.getdata(outdir+'f_'+basename+'_faint_test_cat.fits')
-
-    coords = zip(tcat[x], tcat[y])
-    index, dist = find_closest(center, coords, k=10)
-    tarea = tcat[area][index[np.where(dist != np.inf)]]
-
-    # If we find obj near the center is too small then we overcleaned it
-    oFlag = 0
-    if (dist[0] < sep) & (tarea[0] < 50.): 
-        print 'OVERCLEANED!!!'
-        oFlag = 1
-
-    uFlag = 0
-    # If we find large objs far from the center then we didn't clean enough
-    if (np.any(dist[1::] > 2*sep)) & (np.any(tarea[1::] > 100.)):
-        print 'UNDER CLEANED!!'
-        uFlag = 2
-
 
     # Save all major data products
     if mode == 'BRIGHT':
@@ -311,10 +289,33 @@ def clean_frame(image, outdir, sep=17.):
                      clobber=True)
 
 
+    # Now that we've done the cleaning -- Let's test it!    
+    run_sextractor.run_SE(outdir+'f_'+basename+'.fits[1]', 'FAINT', 
+                          outdir, outstr2='test')
+    tseg = fits.getdata(outdir+'f_'+basename+'_faint_test_seg.fits')
+    tcat = fits.getdata(outdir+'f_'+basename+'_faint_test_cat.fits')
+
+    coords = zip(tcat[x], tcat[y])
+    index, dist = find_closest(center, coords, k=10)
+    tarea = tcat[area][index[np.where(dist != np.inf)]]
+
+    # If we find obj near the center is too small then we overcleaned it
+    oFlag = 0
+    if (dist[0] < sep) & (tarea[0] < 50.): 
+        print 'OVERCLEANED!!!'
+        oFlag = 1
+
+    uFlag = 0
+    # If we find large objs far from the center then we didn't clean enough
+    if (np.any(dist[1::] > 2*sep)) & (np.any(tarea[1::] > 100.)):
+        print 'UNDER CLEANED!!'
+        uFlag = 1
+
+
     # clean up directory
-    #os.system("rm "+outdir+"*bright*.fits")
-    #os.system("rm "+outdir+"*faint*.fits")
-    #os.system("rm "+outdir+"*smooth*.fits")
+    os.system("rm "+outdir+"*bright*.fits")
+    os.system("rm "+outdir+"*faint*.fits")
+    os.system("rm "+outdir+"*smooth*.fits")
 
     #FIndex, Fdist, Bdist, DIST, Farea, Barea,
     return  [category, oFlag, uFlag]

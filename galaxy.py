@@ -5,6 +5,7 @@ import argparse
 import os
 import string
 import pdb
+import resource
 import pyfits as fits
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,6 +13,7 @@ import scipy.ndimage.interpolation as sp_interp
 from math import pi, ceil
 from scipy.interpolate import interp1d
 from astropy.table import Table
+from astropy.stats import sigma_clipped_stats
 from collections import defaultdict
 from random import gauss
 from skimage import measure
@@ -20,21 +22,24 @@ from photutils import aperture_photometry, EllipticalAnnulus, \
                               CircularAperture
 import utils
 import clean
+import galaxy_plot
 
 class Galaxy(object):
 
     def __init__(self, hdulist, filename, flags):
+        
+        # initialize fits image & catalog data
+        image = hdulist['CLN'].data
+        segmap = hdulist['FSEG'].data
+        cat = hdulist['CAT'].data[hdulist['CLN'].header['SECATIDX']]
 
-        self.category = flags[0]
+        # flags and naming attributes
+        self.cat = flags[0]
         self.oflag = flags[1]
         self.uflag = flags[2]
         self.name = os.path.basename(os.path.splitext(filename)[0])
-
-        clean_dat = hdulist['CLN'].data
-        segmap = hdulist['FSEG'].data
-        cat = hdulist['CAT'].data[hdulist['CLN'].header['SECATIDX']]
   
-        # initialize SExtractor parameters        
+        # SExtractor attributes        
         self.e = cat['ELONGATION']
         self.x, self.y = cat['X_IMAGE'], cat['Y_IMAGE']
         self.kron = cat['KRON_RADIUS']
@@ -42,113 +47,113 @@ class Galaxy(object):
         self.theta = cat['THETA_IMAGE']*pi/180. # in radians?
         self.ra, self.dec = cat['ALPHA_J2000'], cat['DELTA_J2000']
 
-        # initialize morphological parameters
-        self.rpet, self.rpetflag = self.get_petro(clean_dat)
-        self.med, self.rms = self.background(clean_dat, segmap)
+        # background attributes
+        self.med, self.rms = self.background(image, segmap)
 
-        if not np.isnan(self.rpet):
-            GalPlot.petro_plotradius(clean_dat)
-            self.A, self.ac = self.get_asymmetry(clean_dat)
-            self.C = self.get_concentration(clean_dat)
-            self.G, self.Gflag = self.get_gini(clean_dat)
-            self.M20, self.mc = self.get_m20(clean_dat)
-        else:
-            self.A, self.ac = np.nan, (self.x, self.y)
-            self.C = np.nan
-            self.G, self.Gflag = np.nan, 1
-            self.M20, self.mc = np.nan, (self.x, self.y)
+        # morphological attributes
+        self.rp, self.rpflag = self.get_petro(image)
         self.elipt = cat['ELLIPTICITY']            
+        if not np.isnan(self.rp):
+            #galaxy_plot.petro_radius(image)
+            #pdb.set_trace()
+            self.A, self.Ac = self.get_asymmetry(image)
+            #self.C = self.get_concentration(image)
+            #self.G, self.Gflag = self.get_gini(image)
+            #self.M, self.Mc = self.get_m20(image)
+        else:
+            self.A, self.Ac = np.nan, (self.x, self.y)
+            #self.C = np.nan
+            #self.G, self.Gflag = np.nan, 1
+            #self.M, self.Mc = np.nan, (self.x, self.y)
 
         #dir(self) in cmd line to see all the hidden shits
+
+    def __enter__(self):
+        return self
       
     def background(self, data, segmap):
-        median = np.median(data[segmap==0])
-        rms = np.sqrt(np.mean(np.square(data[segmap==0])))
-        return median, rms
+        mean, median, std = sigma_clipped_stats(data[segmap==0])
+        #median = np.median(data[segmap==0])
+        #rms = np.sqrt(np.mean(np.square(data[segmap==0])))
+        return median, std
   
-    def get_petro(self, clean_dat):
-
+    def get_petro(self, image):
         r_flag = 0
-        
-        imgsize = clean_dat.shape[0]/2.
-        se_apsize = self.a*self.kron 
-        positions = [self.x, self.y]
-        
+       
         # condition of np.log10(imgsize/constant) ensures that the maximum
         # radius will never exceed the size of the image
-        apix = 10*np.logspace(-1.0, np.log10(imgsize/10.), num=20)
-        bpix = apix/self.e
+        a = 10*np.logspace(-1.0, np.log10(image.shape[0]/2./10.), num=20)
+        b = a/self.e
+        position = [self.x, self.y]
 
-        flux1, flux2, ans1, ans2 = [], [], [], []
-        for idx in range(1,len(apix)-1):
-            # for SB, annuli from radius "before" to radius "after" the current
-            # radius in apix
-            an1 = EllipticalAnnulus(positions, apix[idx-1], apix[idx+1], 
-                                bpix[idx+1], self.theta)
-            ans1.append(an1)
-            flux1.append(aperture_photometry(clean_dat, an1, method='exact'))
-            
-            # for Avg SB, annuli from radius "before" to current radius in apix
-            an2 = EllipticalAnnulus(positions, apix[idx-1], apix[idx], 
-                                bpix[idx], self.theta)
-            ans2.append(an2) 
-            flux2.append(aperture_photometry(clean_dat, an2, method='exact'))
+        # determine flux (counts) in annuli at various radii
+        annuli_atR = np.hstack([EllipticalAnnulus(position, a[idx-1], a[idx+1], 
+                                              b[idx+1], self.theta) \
+                                for idx in range(1,len(a[:-1]))])
+        flux_atR = np.hstack([aperture_photometry(image, an, method='exact') \
+                              for an in annuli_atR])
 
-        phot_table1 = np.hstack(flux1)
-        counts1 = phot_table1['aperture_sum']
-        annuli1 = np.hstack(ans1)  
-              
-        phot_table2 = np.hstack(flux2)
-        counts2 = phot_table2['aperture_sum']
-        annuli2 = np.hstack(ans2) 
- 
-        areas1 = [an1.area() for an1 in annuli1]
-        areas2 = [an2.area() for an2 in annuli2]
-                     
+        annuli_inR = np.hstack([EllipticalAnnulus(position, a[idx-1], a[idx], 
+                                                  b[idx], self.theta) \
+                                for idx in range(1,len(a[:-1]))])
+        flux_inR = np.hstack([aperture_photometry(image, an, method='exact') \
+                              for an in annuli_inR])
+
+        counts_atR = flux_atR['aperture_sum']
+        counts_inR = flux_inR['aperture_sum']
+        areas_atR = np.array([an.area() for an in annuli_atR])
+        areas_inR = np.array([an.area() for an in annuli_inR])
+
+        # surface brightness = total counts / area
+        sb = self._sb = counts_atR/areas_atR      
+
+        # average surface brightness is the cumulative sum of the counts within
+        # the radius, R, divided by the cumulative area withn in the same R 
+        num = len(counts_inR)+1
+        csum = np.array([np.sum(counts_inR[0:idx]) for idx in range(1, num)])
+        asum = np.array([np.sum(areas_inR[0:idx]) for idx in range(1, num)])
+        avgsb = self._avgsb = csum/asum  
+
+        '''
+        # estimate error for SB and <SB>
+        sberr = self._sberr = np.sqrt(areas1*self.rms**2)/areas1
+        avgsberr = self._avgsberr = np.sqrt(asum*self.rms**2)
+
+        # estimate error for the ratio of SB/<SB>
+        ratio_err = self._ratio_err = np.sqrt((sberr/sb)**2 + 
+                                              (avgsberr/avgsb)**2)
+        #'''
         
-        # calculate the average surface brightness
-        csum = np.array([np.sum(counts2[0:idx]) \
-                         for idx in range(1, len(counts2)+1)])
-        asum = np.array([np.sum(areas2[0:idx]) \
-                         for idx in range(1, len(areas2)+1)])
-        sb = counts1/areas1      
-        avgsb = csum/asum  
-
-        # now we need to find the intersection of u(R)/<u(R)> with 0.2
-        # define radii to interpolte on -- semimajor axis
-        x = apix[1:-1]
+        pdb.set_trace()
+        # now we need to find the intersection of sb/<sb> with 0.2:
         # define a finer spacing of radii to interpolate onto
-        radii = np.linspace(np.min(x), np.max(x), num=1000)
-        f = interp1d(x, sb/avgsb, kind='cubic')
+        self._rads = a[1:-1]
+        radii = self._interprads = np.linspace(np.min(self._rads), 
+                                               np.max(self._rads), num=1000)
+        f = interp1d(self._rads, sb/avgsb, kind='cubic')
         # values of the ratio SB/<SB> as a function of radius
-        ratios = f(radii)
+        ratios = self._interpvals = f(self._interprads)
 
-        rpet = np.nan
+        rp = np.nan
         if not np.any(np.isnan(ratios)):
-            dirty = ratios-0.2
-            # if any value in dirty is non negative, shit be rockin ... 
-            if (dirty < 0).any():
-                for idx,thing in enumerate(dirty):
-                    if thing < 0:
-                        rpet = np.mean([radii[idx-1],radii[idx]])
-                        GalPlots.petro_plotSB(sb, avgsb, x, ratios, radii)
-                        #GalPlots.petro_plotradius(clean_dat)
-                        return rpet, r_flag
-            # if not, then shit be broked ... 
+            if np.any(ratios-0.2):
+                for idx, val in enumerate(ratios-0.2):
+                    if val < 0:
+                        rp = np.mean([radii[idx-1], radii[idx]])
+                        return rp, r_flag
             else: 
                 print "Ratio never crosses 0.2."
                 print "Cannot calculate Petrosian radius."
                 r_flag = 1 
-        # if there are nans, shit be broked ... 
         else:
             print "Interpoation failed!"
             print "Cannot calculate Petrosian radius."
             r_flag = 2
         
-        return rpet, r_flag     
+        return rp, r_flag     
 
         
-    def get_asymmetry(self, clean_dat):
+    def get_asymmetry(self, image):
         '''
         In this one, we're doing it Claudia's way
         1. make a smaller image of the galaxy -> 2*petrosian rad
@@ -161,22 +166,12 @@ class Galaxy(object):
         print "calculating Asymmetry..."
 
         galcenter = np.array([self.x, self.y])
-        imgcenter = np.array([clean_dat.shape[0]/2., clean_dat.shape[1]/2.])
+        imgcenter = np.array([image.shape[0]/2., image.shape[1]/2.])
         delta = imgcenter - galcenter
 
-        low = round(imgcenter[0] - 2*self.rpet)
-        high = round(imgcenter[0] + 2*self.rpet)
-        if not ((high-low) % 2 == 0.):
-            high += 1
-            delta = delta - 1
-            #print delta
-            
-        smaller = clean_dat[low:high, low:high]
-        imgcenter_sm = [smaller.shape[0]/2., smaller.shape[1]/2.]
-        
         # create a new aperture at the new center of the new image!
-        aperture = EllipticalAperture(imgcenter_sm, self.rpet, 
-                                      self.rpet/self.e, self.theta)
+        aperture = EllipticalAperture(imgcenter, self.rp, 
+                                      self.rp/self.e, self.theta)
 
         # create a SQUARE background/noise image approx same size 
         # as area of aperture (we need to minimize calculations)
@@ -184,13 +179,13 @@ class Galaxy(object):
         bkg_img = np.zeros((size, size))
         mask = np.where(bkg_img == 0)
 
-        #stddev = np.std(clean_dat[segmap==0])
+        #stddev = np.std(image[segmap==0])
         for pixel in zip(mask[0], mask[1]):
             bkg_img[pixel] = gauss(self.med, self.rms)
         
         # save the background image 
         bkg = fits.ImageHDU(data=bkg_img)
-        bkg.writeto('output/bkgimgs/'+self.name+'.fits', clobber=True)
+        bkg.writeto('output/asymimgs/'+self.name+'.fits', clobber=True)
         #'''
 
         # minimize the background asymmetry --
@@ -218,13 +213,13 @@ class Galaxy(object):
         while True:
             ga = []
             dd = []
-            deltas, points = utils.generate_deltas(imgcenter_sm, .3, delta)
+            deltas, points = utils.generate_deltas(imgcenter, .3, delta)
 
             for d, p in zip(deltas, points): 
                 # if the point already exists in the dictionary, 
                 #don't run asym codes!
                 if p not in asyms: 
-                    newdata = sp_interp.shift(smaller, d)
+                    newdata = sp_interp.shift(image, d)
                     rotdata = sp_interp.rotate(newdata, 180.)
                     residual = np.abs(newdata-rotdata)
                     numerator = aperture_photometry(residual, aperture)
@@ -240,6 +235,9 @@ class Galaxy(object):
                     #point on the image grid
                     asyms[p].append([galasym,den])
 
+                    #galaxy_plot.asym_plot(newdata, residual, aperture, 
+                    #                      galcenter, self.rp)
+
                 # just take the value that's already in the dictionary 
                 # for that point
                 else:
@@ -250,46 +248,19 @@ class Galaxy(object):
             # (first delta in deltas) is the minimum, we're done!
             if ga[0] == np.min(ga):
                 center = imgcenter - deltas[0]
-                center_sm = imgcenter_sm - deltas[0]
-                self.asym_plot(newdata, residual, aperture, 
-                               imgcenter_sm, center_sm)
-                return ga[0]-bkgasym/dd[0], center
+                # save the residual image 
+                res = fits.ImageHDU(data=residual)
+                res.writeto('output/asymimgs/'+self.name+'_res.fits', clobber=True)
+                #galaxy_plot.asym_plot(newdata, residual, aperture, 
+                #                      center, self.rp, self.med, self.rms)
+                return ga[0]-bkgasym/dd[0], center.tolist()
             else:
                 minloc = np.where(ga == np.min(ga))[0]
                 delta = deltas[minloc[0]]
                 prior_points = list(points)
-                       
 
-    def asym_plot(self, shifted, residual, aperture, imgcenter, galcenter):
-        #low = imgcenter[0]-2*self.rpet
-        #high = imgcenter[1]+2*self.rpet
-        plt.figure()
-        plt.imshow(shifted)
-        plt.plot(galcenter[1], galcenter[0], 'k+', mew=2, ms=10)
-        plt.plot(imgcenter[1], imgcenter[0], 'r+', mew=2, ms=10)
-        aperture.plot()
-        #plt.xlim(low, high)
-        #plt.ylim(low, high)
-        plt.title('Shifted Cleaned Image')
-        plt.savefig('output/asyms/'+self.name+'_asym1_CS.png')
-        plt.close()
 
-        plt.figure()
-        plt.imshow(residual)
-        plt.plot(galcenter[1], galcenter[0], 'k+', mew=2, ms=10, 
-                 label="Asymmetry Center")
-        plt.plot(imgcenter[1], imgcenter[0], 'r+', mew=2, ms=10, 
-                 label="Image Center")
-        aperture.plot()
-        #plt.xlim(low, high)
-        #plt.ylim(low, high)
-        plt.title('Asymmetry Residuals (I - I180)')
-        plt.legend()
-        plt.savefig('output/asyms/'+self.name+'_asym2_CS.png')
-        plt.close()
-        return 0.
-
-    def get_concentration(self, clean_dat):#aper_sums, aper_radii, rpet
+    def get_concentration(self, image):
         '''
         To calculate the conctration we need to find the radius 
             -- which encloses 20% of the total light
@@ -305,7 +276,7 @@ class Galaxy(object):
 
         # Calculate a running sum in CIRCULAR apertures instead of ELLIPTICAL
         position = [self.x, self.y]
-        imgsize = clean_dat.shape[0]/2.
+        imgsize = image.shape[0]/2.
         radii = 10*np.logspace(-1.0, np.log10(imgsize/10.), num=20)
 
         flux = []
@@ -313,7 +284,7 @@ class Galaxy(object):
             # for Avg SB, annuli from radius "before" to current radius in apix
             an = CircularAnnulus(position, radii[idx-1], radii[idx])
             #ans.append(an) 
-            flux.append(aperture_photometry(clean_dat, an, method='exact'))
+            flux.append(aperture_photometry(image, an, method='exact'))
 
         phot_table = np.hstack(flux)
         counts = phot_table['aperture_sum']
@@ -324,8 +295,8 @@ class Galaxy(object):
         cum_sum = np.array(cum_sum)      
 
         # Calculate the total flux in a Circular aperture of 1.5*rpet
-        tot_ap = CircularAperture(position, self.rpet)
-        tot_flux = aperture_photometry(clean_dat, tot_ap, method='exact')
+        tot_ap = CircularAperture(position, self.rp)
+        tot_flux = aperture_photometry(image, tot_ap, method='exact')
         totflux = float(tot_flux['aperture_sum'])
 
         ratio = cum_sum/totflux
@@ -352,7 +323,7 @@ class Galaxy(object):
         ratios = f(r)
 
         plt.plot(r, ratios)
-        plt.savefig('output/conc/'+self.name+'_c_conc.png')
+        #plt.savefig('output/conc/'+self.name+'_c_conc.png')
 
         r20 = np.nan
         r80 = np.nan
@@ -376,7 +347,7 @@ class Galaxy(object):
         #pdb.set_trace()
         return  5*np.log10(r80/r20)
         
-    def get_gini(self, clean_dat):
+    def get_gini(self, image):
         '''
         Need all pixels associated with a galaxy -- use my aperture thing? 
         1. All pixels within 1 Rp
@@ -388,15 +359,15 @@ class Galaxy(object):
         gflag = 0
 
         # create aperture at center of galaxy
-        ap = utils.EllipticalAperture( (self.x, self.y), self.rpet, \
-                                            self.rpet/self.e, self.theta, \
-                                            clean_dat)
+        ap = utils.EllipticalAperture( (self.x, self.y), self.rp, \
+                                            self.rp/self.e, self.theta, \
+                                            image)
 
         # create galaxy and background masks from aperture
         #apmask = ap.aper.astype('float')
         #bkgmask = np.logical_not(apmask).astype('float')
         
-        pixels = ap.aper * clean_dat
+        pixels = ap.aper * image
         galpix = pixels[pixels > 0.]
         # sort galpixels
         galpix_sorted = sorted(galpix)
@@ -413,7 +384,7 @@ class Galaxy(object):
         plt.figure()
         imgplot = plt.imshow(pixels[200:300, 200:300], cmap='gray_r', origin='lower')
         imgplot.set_clim(-0.009, 0.022)
-        plt.savefig('output/aperture/'+self.name+'_aperG.png')
+        #plt.savefig('output/aperture/'+self.name+'_aperG.png')
         plt.close()
 
         #pdb.set_trace()
@@ -423,11 +394,11 @@ class Galaxy(object):
 
         return g, gflag
             
-    def get_m20(self, clean_dat):
+    def get_m20(self, image):
 
         print "Calculating M20..."
         
-        shape = clean_dat.shape
+        shape = image.shape
         imgcenter = np.array([shape[0]/2., shape[1]/2.])
         galcenter = np.array([self.x, self.y])
         delta = imgcenter - galcenter
@@ -435,8 +406,8 @@ class Galaxy(object):
         # create fine grid over which we'll calculate Mtot 
         # want to minimize this --> not compute over the whole image
         # choose a square ~ 1 petro rad in each direction from center? 
-        x = y = np.arange(imgcenter[0]-round(self.rpet), 
-                          imgcenter[0]+round(self.rpet))
+        x = y = np.arange(imgcenter[0]-round(0.5*self.rp), 
+                          imgcenter[0]+round(0.5*self.rp))
         xx, yy = np.meshgrid(x, y)
 
         # at each point in that grid we'll compute Mtot
@@ -444,16 +415,16 @@ class Galaxy(object):
         # distance grid: the distance of every other pixel to that point
 
         # distance grid: 
-        x2, y2 = np.ogrid[:clean_dat.shape[0], :clean_dat.shape[1]]
+        x2, y2 = np.ogrid[:image.shape[0], :image.shape[1]]
 
         dist_grids = [(x2-xi)**2 + (y2-yi)**2 for xi, yi in \
                       zip(xx.flatten(), yy.flatten())]
 
         # create aperture at center of galaxy (mask)
         gal_aper = utils.EllipticalAperture(imgcenter, 
-                            self.rpet, self.rpet/self.e, self.theta, clean_dat)
+                            self.rp, self.rp/self.e, self.theta, image)
 
-        mtots = [np.sum(gal_aper.aper*clean_dat*grid) for grid in dist_grids]
+        mtots = [np.sum(gal_aper.aper*image*grid) for grid in dist_grids]
         Mtot = np.min(mtots)
         xc, yc = xx.flatten()[mtots == Mtot], yy.flatten()[mtots == Mtot]
         dist_grid = dist_grids[np.where(mtots == Mtot)[0]]
@@ -462,9 +433,9 @@ class Galaxy(object):
         # we can calculate M20!
 
         # create aperture/dist map at center that minimizes Mtot
-        m20_aper = utils.EllipticalAperture((xc, yc), self.rpet, 
-                                    self.rpet/self.e, self.theta, clean_dat)
-        galpix = m20_aper.aper*clean_dat
+        m20_aper = utils.EllipticalAperture((xc, yc), self.rp, 
+                                    self.rp/self.e, self.theta, image)
+        galpix = m20_aper.aper*image
         dist_grid_sorted = np.array([x for y, x, in \
                             sorted(zip(galpix.flatten(), dist_grid.flatten()),
                                    reverse=True)])
@@ -487,23 +458,26 @@ class Galaxy(object):
 
         fig, ax = plt.subplots()
         
-        imgplot = ax.imshow(clean_dat, cmap='gray_r')
+        imgplot = ax.imshow(image, cmap='gray_r')
         imgplot.set_clim(-0.01, 0.03)
 
-        m20_ap2 = EllipticalAperture((xc, yc), self.rpet, self.rpet/self.e, 
-                                     self.theta)
-        contours = measure.find_contours(clean_dat, m20_galpix.min())
-        for n, contour in enumerate(contours):
-            ax.plot(contour[:,1], contour[:,0], linewidth=2)
-        m20_ap2.plot()
-        plt.plot(center[0], center[1], 'r+', mew=2, ms=10)
-        ax.set_xlim(shape[0]/2.-3*self.rpet, shape[0]/2.+3*self.rpet)
-        ax.set_ylim(shape[1]/2.-3*self.rpet, shape[1]/2.+3*self.rpet)
-        plt.savefig('output/m20/'+self.name+'_m20.pdf')
-        #plt.show()
         plt.close()
         
-        return M20, center
+        return M20, (xc[0], yc[0])
+        
+    def table(self): 
+        the_dict = self.__dict__
+        entries = ['name', '_sb', '_avgsb', '_rads', 'rms', 'med',
+                   '_interprads', '_interpvals', '_sberr', '_ratio_err']
+        for key in entries:
+            if key in the_dict:
+                del the_dict[key]
+
+        return the_dict
+
+        
+    def __exit__(self, type, value, traceback):
+        self.stream.close()
 
 
 
@@ -521,12 +495,19 @@ def main():
     fitsfiles = sorted(glob.glob(args.directory+'*.fits'))
     #fitsfiles = sorted(glob.glob(args.directory))
 
-    outdir = 'output/datacube7/'
+    outdir = 'output/datacube/'
 
-    galaxies = []
-    t = Table(names=('name', 'Fidx', 'Fdist', 'Bdist', 
-                     'F-B', 'Farea', 'Barea', 'Flag', 'cFlag'), 
-              dtype=('S70', 'i', 'f4', 'f4', 'f4', 'f4', 'f4', 'i', 'i'))
+    #t = Table(names=('name', 'Fidx', 'Fdist', 'Bdist', 
+    #                 'F-B', 'Farea', 'Barea', 'Flag', 'cFlag'), 
+    #          dtype=('S70', 'i', 'f4', 'f4', 'f4', 'f4', 'f4', 'i', 'i'))
+
+    t = Table(names=('cat', 'oflag', 'uflag', 'e', 'x', 'y', 
+                     'kron', 'a', 'b', 'theta', 'ra', 'dec', 'rp', 'rpflag', 
+                     'A', 'Ac', 'C', 'G', 'Gflag', 'M', 'Mc', 'elipt'), 
+              dtype=('i', 'i', 'i', 'f4', 'f4', 'f4', 'f4', 'f4', 'f4', 'f4', 
+                     'f4', 'f4', 'f4', 'i', 'f4', ('f4', (2,)), 'f4', 'f4', 
+                     'i', 'f4', ('f4', (2,)), 'f4'))
+
     for f in fitsfiles: 
         basename = os.path.basename(f)
         filename = outdir+'f_'+basename
@@ -540,13 +521,22 @@ def main():
             #fidx,fdist,bdist,fbdist,farea,barea,
             #pdb.set_trace()
         #else:
+
         print "Running", os.path.basename(f)
+
         hdulist = fits.open(filename, memmap=True)
-        galaxies.append(Galaxy(hdulist,filename, flags)) 
+        g = Galaxy(hdulist, filename, flags)
+        #utils.resource_getrusage()
+        #utils.resource_getrlimits()
+        #pdb.set_trace()
+        galaxy_plot.plot(g, hdulist)
+        t.add_row(g.table())
         hdulist.close()
+        del g
+        exit()
 
 
-    t.write('data7.txt', format='ascii.fixed_width', delimiter='')
+    t.write('data?.txt', format='ascii.fixed_width', delimiter='')
     #info = Table(rows=[g.__dict__ for g in galaxies])
     #info.write(args.output, overwrite=True)
 

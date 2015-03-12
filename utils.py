@@ -1,4 +1,5 @@
 import os
+import resource
 import string
 import numpy as np
 import pyfits as fits
@@ -14,6 +15,35 @@ from matplotlib.patches import Ellipse
 import fast_ffts
 import run_sextractor
 
+
+def resource_getrusage():
+    usage = resource.getrusage(resource.RUSAGE_SELF)
+    for name, desc in [
+            ('ru_utime', 'User time'),
+            ('ru_stime', 'System time'),
+            ('ru_maxrss', 'Max. Resident Set Size'),
+            ('ru_ixrss', 'Shared Memory Size'),
+            ('ru_idrss', 'Unshared Memory Size'),
+            ('ru_isrss', 'Stack Size'),
+            ('ru_inblock', 'Block inputs'),
+            ('ru_oublock', 'Block outputs')]:
+        print '%-25s (%-10s) = %s' %(desc, name, getattr(usage, name))
+
+def resource_getrlimits():
+    
+    for name, desc in [
+            ('RLIMIT_CORE', 'core file size'),
+            ('RLIMIT_CPU',  'CPU time'),
+            ('RLIMIT_FSIZE', 'file size'),
+            ('RLIMIT_DATA', 'heap size'),
+            ('RLIMIT_STACK', 'stack size'),
+            ('RLIMIT_RSS', 'resident set size'),
+            ('RLIMIT_NPROC', 'number of processes'),
+            ('RLIMIT_NOFILE', 'number of open files'),
+            ('RLIMIT_MEMLOCK', 'lockable memory address')]:
+        limit_num = getattr(resource, name)
+        soft, hard = resource.getrlimit(limit_num)
+        print 'Maximum %-25s (%-15s) : %20s %20s' % (desc, name, soft, hard)
 
 def find_closest(point, listofpoints, k=1):
     
