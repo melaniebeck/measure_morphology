@@ -45,6 +45,44 @@ def resource_getrlimits():
         soft, hard = resource.getrlimit(limit_num)
         print 'Maximum %-25s (%-15s) : %20s %20s' % (desc, name, soft, hard)
 
+def get_interp(x, y, num=1000, kind='cubic'):
+    newx = np.linspace(np.min(x), np.max(x), num=num)
+    newy = interp1d(x, y, kind=kind)
+    return newx, newy(newx)
+
+def get_intersect(ydata, point, xvals, mono='inc'):
+    '''
+    I do this a lot: 
+    data crosses a horizontal (y) line - at what x value does it intersect 
+    that line?
+    data: an array of y values
+    point: y value defining the horizontal line that the data cross
+    mono: data is assumed monotonic (it's really not) but is it 
+          (inc)reasing or (dec)reasing monotonic?
+    '''
+
+    if mono=='inc':
+        if np.any(point - ydata < 0):
+            for idx, val in enumerate(point - ydata):
+                if val < 0:
+                    return np.mean([xvals[idx-1], xvals[idx]])
+                    break
+        else:
+            print 'Data never cross the Horizontal Line.'
+            print 'Cannot calculate the intersection.'
+            return -1
+
+    if mono=='dec':
+        if np.any(ydata - point < 0):
+            for idx, val in enumerate(ydata - point):
+                if val < 0:
+                    return np.mean([xvals[idx-1], xvals[idx]])
+                    break
+        else:
+            print 'Data never cross the Horizontal Line.'
+            print 'Cannot calculate the intersection.'
+            return -1    
+
 def find_closest(point, listofpoints, k=1):
     
     # create a KDTree

@@ -145,7 +145,22 @@ def asym_plot(gal, image):
 
 def conc():
     stuff
+
+    #pdb.set_trace()
     
+    plt.figure()
+    plt.plot(x, ratio, 'ro')
+    plt.axhline(y=0.2, linestyle='--', color='k')
+    plt.axhline(y=0.8, linestyle='--', color='k')
+    plt.ylim(0., 1.4)
+    plt.title('Cumulative Flux / Total Flux vs. Radius')
+    plt.xlabel('Radius [pixel]')
+    plt.ylabel('Flux ratio [counts]')
+    #plt.show()
+    #pdb.set_trace()
+    plt.plot(r, ratios)
+    #plt.savefig('output/conc/'+self.name+'_c_conc.png')
+    plt.close()
 
 def m20_plot():
 
@@ -161,6 +176,14 @@ def m20_plot():
     ax.set_ylim(shape[1]/2.-3*self.rp, shape[1]/2.+3*self.rp)
     plt.savefig('output/m20/'+self.name+'_m20.pdf')
     plt.show()
+
+    fig, ax = plt.subplots()
+    
+    imgplot = ax.imshow(image, cmap='gray_r')
+    imgplot.set_clim(-0.01, 0.03)
+    
+    plt.close()
+    
 
 def plot(galaxy, hdulist):
     clean_img = hdulist['CLN'].data

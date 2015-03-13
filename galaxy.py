@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import scipy.ndimage.interpolation as sp_interp
 from math import pi, ceil
 from scipy.interpolate import interp1d
+from scipy.optimize import fsolve
 from astropy.table import Table
 from astropy.stats import sigma_clipped_stats
 from collections import defaultdict
@@ -53,18 +54,16 @@ class Galaxy(object):
         # morphological attributes
         self.rp, self.rpflag = self.get_petro(image)
         self.elipt = cat['ELLIPTICITY']            
-        if not np.isnan(self.rp):
-            #galaxy_plot.petro_radius(image)
-            #pdb.set_trace()
+        if self.rp > 0.:
             self.A, self.Ac = self.get_asymmetry(image)
-            #self.C = self.get_concentration(image)
-            #self.G, self.Gflag = self.get_gini(image)
-            #self.M, self.Mc = self.get_m20(image)
+            self.C = self.get_concentration(image)
+            self.G = self.get_gini(image)
+            self.M, self.Mc = self.get_m20(image)
         else:
             self.A, self.Ac = np.nan, (self.x, self.y)
-            #self.C = np.nan
-            #self.G, self.Gflag = np.nan, 1
-            #self.M, self.Mc = np.nan, (self.x, self.y)
+            self.C = np.nan
+            self.G = np.nan, 
+            self.M, self.Mc = np.nan, (self.x, self.y)
 
         #dir(self) in cmd line to see all the hidden shits
 
@@ -90,17 +89,15 @@ class Galaxy(object):
         annuli_atR = np.hstack([EllipticalAnnulus(position, a[idx-1], a[idx+1], 
                                               b[idx+1], self.theta) \
                                 for idx in range(1,len(a[:-1]))])
-        flux_atR = np.hstack([aperture_photometry(image, an, method='exact') \
-                              for an in annuli_atR])
+        counts_atR = np.hstack([aperture_photometry(image, an, method='exact') \
+                                for an in annuli_atR])['aperture_sum']
 
         annuli_inR = np.hstack([EllipticalAnnulus(position, a[idx-1], a[idx], 
                                                   b[idx], self.theta) \
                                 for idx in range(1,len(a[:-1]))])
-        flux_inR = np.hstack([aperture_photometry(image, an, method='exact') \
-                              for an in annuli_inR])
+        counts_inR = np.hstack([aperture_photometry(image, an, method='exact') \
+                                for an in annuli_inR])['aperture_sum']
 
-        counts_atR = flux_atR['aperture_sum']
-        counts_inR = flux_inR['aperture_sum']
         areas_atR = np.array([an.area() for an in annuli_atR])
         areas_inR = np.array([an.area() for an in annuli_inR])
 
@@ -124,7 +121,6 @@ class Galaxy(object):
                                               (avgsberr/avgsb)**2)
         #'''
         
-        pdb.set_trace()
         # now we need to find the intersection of sb/<sb> with 0.2:
         # define a finer spacing of radii to interpolate onto
         self._rads = a[1:-1]
@@ -134,24 +130,49 @@ class Galaxy(object):
         # values of the ratio SB/<SB> as a function of radius
         ratios = self._interpvals = f(self._interprads)
 
-        rp = np.nan
         if not np.any(np.isnan(ratios)):
-            if np.any(ratios-0.2):
-                for idx, val in enumerate(ratios-0.2):
-                    if val < 0:
-                        rp = np.mean([radii[idx-1], radii[idx]])
-                        return rp, r_flag
-            else: 
-                print "Ratio never crosses 0.2."
-                print "Cannot calculate Petrosian radius."
-                r_flag = 1 
+            rp = utils.get_intersect(ratios, 0.2, radii, mono='dec')
+            if rp == -1:
+                r_flag = 1
+            return rp, r_flag
         else:
-            print "Interpoation failed!"
-            print "Cannot calculate Petrosian radius."
-            r_flag = 2
-        
-        return rp, r_flag     
+            print "Petrosian interpolation failed!"
+            rp, r_flag = -1, 2
+            return rp, r_flag
+ 
 
+    def bkg_asymmetry(self, aperture):
+
+        # create a square background image approx same size 
+        # as area of aperture (we need to minimize calculations)
+        size = ceil(np.sqrt(ceil(aperture.area()))) 
+        bkg_img = np.zeros((size, size))
+        mask = np.where(bkg_img == 0)
+
+        #stddev = np.std(image[segmap==0])
+        for pixel in zip(mask[0], mask[1]):
+            bkg_img[pixel] = gauss(self.med, self.rms)
+        
+        # save the background image 
+        bkg = fits.ImageHDU(data=bkg_img)
+        bkg.writeto('output/asymimgs/'+self.name+'.fits', clobber=True)
+        #'''
+
+        # minimize the background asymmetry
+        ba = []
+        for idx1 in range(bkg_img.shape[0]):
+            for idx2 in range(bkg_img.shape[1]):
+                shifted = bkg_img.take(range(idx1-bkg_img.shape[0], idx1), 
+                                       mode='wrap', axis=0) \
+                                 .take(range(idx2-bkg_img.shape[1], idx2), 
+                                       mode='wrap', axis=1)
+                rotated = np.rot90(shifted, 2) 
+                ba.append(np.sum(np.abs(shifted-rotated)))
+
+        # find the  minimum of all possible bkg asyms, normalized to the exact
+        # area of the original aperture
+        bkgasym = np.min(ba)*aperture.area()/(bkg_img.shape[0]*bkg_img.shape[1])
+        return bkgasym
         
     def get_asymmetry(self, image):
         '''
@@ -169,42 +190,8 @@ class Galaxy(object):
         imgcenter = np.array([image.shape[0]/2., image.shape[1]/2.])
         delta = imgcenter - galcenter
 
-        # create a new aperture at the new center of the new image!
-        aperture = EllipticalAperture(imgcenter, self.rp, 
-                                      self.rp/self.e, self.theta)
-
-        # create a SQUARE background/noise image approx same size 
-        # as area of aperture (we need to minimize calculations)
-        size = ceil(np.sqrt(ceil(aperture.area()))) 
-        bkg_img = np.zeros((size, size))
-        mask = np.where(bkg_img == 0)
-
-        #stddev = np.std(image[segmap==0])
-        for pixel in zip(mask[0], mask[1]):
-            bkg_img[pixel] = gauss(self.med, self.rms)
-        
-        # save the background image 
-        bkg = fits.ImageHDU(data=bkg_img)
-        bkg.writeto('output/asymimgs/'+self.name+'.fits', clobber=True)
-        #'''
-
-        # minimize the background asymmetry --
-        # doesn't matter WHERE the bkg min IS! Just that we find it somewhere!
-        # also -- don't need to subpixel shift - it's just NOISE.
-        ba = []
-        count = 0
-        for idx1 in range(bkg_img.shape[0]):
-            for idx2 in range(bkg_img.shape[1]):
-                #print idx-bkg_img.shape[0], idx
-                shifted = bkg_img.take(range(idx1-bkg_img.shape[0], idx1), 
-                                       mode='wrap', axis=0) \
-                                 .take(range(idx2-bkg_img.shape[1], idx2), 
-                                       mode='wrap', axis=1)
-                rotated = np.rot90(shifted, 2) 
-                ba.append(np.sum(np.abs(shifted-rotated)))
-
-        # find the  minimum of all possible bkg asyms
-        bkgasym = np.min(ba)*aperture.area()/(bkg_img.shape[0]**2)
+        aper = EllipticalAperture(imgcenter, self.rp, self.rp/self.e,self.theta)
+        bkg_asym = self.bkg_asymmetry(aper)
 
         asyms = defaultdict(list)
         prior_points = []
@@ -222,8 +209,8 @@ class Galaxy(object):
                     newdata = sp_interp.shift(image, d)
                     rotdata = sp_interp.rotate(newdata, 180.)
                     residual = np.abs(newdata-rotdata)
-                    numerator = aperture_photometry(residual, aperture)
-                    denominator = aperture_photometry(np.abs(newdata), aperture)
+                    numerator = aperture_photometry(residual, aper)
+                    denominator = aperture_photometry(np.abs(newdata), aper)
                     num = float(numerator['aperture_sum']) 
                     den = float(denominator['aperture_sum'])
                     galasym = num/den
@@ -253,7 +240,7 @@ class Galaxy(object):
                 res.writeto('output/asymimgs/'+self.name+'_res.fits', clobber=True)
                 #galaxy_plot.asym_plot(newdata, residual, aperture, 
                 #                      center, self.rp, self.med, self.rms)
-                return ga[0]-bkgasym/dd[0], center.tolist()
+                return ga[0]-bkg_asym/dd[0], center.tolist()
             else:
                 minloc = np.where(ga == np.min(ga))[0]
                 delta = deltas[minloc[0]]
@@ -265,7 +252,7 @@ class Galaxy(object):
         To calculate the conctration we need to find the radius 
             -- which encloses 20% of the total light
             -- which encloses 80% of the total light
-        So we need a running sum of the total pixel counts within various radii
+        So we need a running sum of the total pixel counts in increasing radii
         We also need to know the total flux -- 
            define as the total pixel counts within 
            an aperture of  one petrosian radius
@@ -274,77 +261,35 @@ class Galaxy(object):
         #'''
         print "calculating Concentration..."
 
-        # Calculate a running sum in CIRCULAR apertures instead of ELLIPTICAL
-        position = [self.x, self.y]
-        imgsize = image.shape[0]/2.
-        radii = 10*np.logspace(-1.0, np.log10(imgsize/10.), num=20)
+        radii = 10*np.logspace(-1.0, np.log10(image.shape[0]/2./10.), num=20)
 
-        flux = []
-        for idx in range(1,len(radii)):          
-            # for Avg SB, annuli from radius "before" to current radius in apix
-            an = CircularAnnulus(position, radii[idx-1], radii[idx])
-            #ans.append(an) 
-            flux.append(aperture_photometry(image, an, method='exact'))
-
-        phot_table = np.hstack(flux)
-        counts = phot_table['aperture_sum']
-        #annuli = np.hstack(ans)
-
-        # calculate the average surface brightness
-        cum_sum = [np.sum(counts[0:idx]) for idx in range(1,len(counts)+1)]
-        cum_sum = np.array(cum_sum)      
+        # Build circular annuli centered on the ASYMMETRY CENTER of the galaxy
+        annuli = [CircularAnnulus((self.Ac[0], self.Ac[1]),radii[i-1],radii[i])\
+                  for i in range(1,len(radii))]
+        counts = np.hstack([aperture_photometry(image, an, method='exact') \
+                            for an in annuli])['aperture_sum']
+        cum_sum = np.array([np.sum(counts[0:idx]) \
+                            for idx in range(1,len(counts)+1)])
 
         # Calculate the total flux in a Circular aperture of 1.5*rpet
-        tot_ap = CircularAperture(position, self.rp)
-        tot_flux = aperture_photometry(image, tot_ap, method='exact')
-        totflux = float(tot_flux['aperture_sum'])
+        tot_aper = CircularAperture((self.Ac[0], self.Ac[1]), self.rp)
+        tot_flux = float(aperture_photometry(image, tot_aper, 
+                                             method='exact')['aperture_sum'])
 
-        ratio = cum_sum/totflux
-        x = radii[1:]
-
-        #pdb.set_trace()
-
-        plt.figure()
-        plt.plot(x, ratio, 'ro')
-        plt.axhline(y=0.2, linestyle='--', color='k')
-        plt.axhline(y=0.8, linestyle='--', color='k')
-        plt.ylim(0., 1.4)
-        plt.title('Cumulative Flux / Total Flux vs. Radius')
-        plt.xlabel('Radius [pixel]')
-        plt.ylabel('Flux ratio [counts]')
-        #plt.show()
-        #pdb.set_trace()
-
-        plt.close()
+        # ratio of the cumulative counts over the total counts in the galaxy
+        ratio = cum_sum/tot_flux
+        rads = radii[1:]
 
         # now we need to find the intersection of ratio with 0.2 and 0.8
-        r = np.linspace(np.min(x), np.max(x), num=1000)
-        f = interp1d(x, ratio, kind='cubic')        
-        ratios = f(r)
+        interp_radii, interp_ratio = utils.get_interp(rads, ratio)
 
-        plt.plot(r, ratios)
-        #plt.savefig('output/conc/'+self.name+'_c_conc.png')
-
-        r20 = np.nan
-        r80 = np.nan
-
-        if not np.any(np.isnan(ratios)):
-            dirty20 = 0.2 - ratios
-            # if any value in dirty is non negative, shit be rockin ... 
-            if (dirty20 < 0).any():
-                for idx,thing in enumerate(dirty20):
-                    if thing < 0:
-                        r20 = np.mean([r[idx-1],r[idx]])
-                        break
-
-            dirty80 = 0.8 - ratios
-            # if any value in dirty is non negative, shit be rockin ... 
-            if (dirty80 < 0).any():
-                for idx,thing in enumerate(dirty80):
-                    if thing < 0:
-                        r80 = np.mean([r[idx-1],r[idx]])
-                        break
-        #pdb.set_trace()
+        if not np.any(np.isnan(interp_ratio)):
+            r20 = utils.get_intersect(interp_ratio, 0.2, interp_radii)
+            r80 = utils.get_intersect(interp_ratio, 0.8, interp_radii)
+        else:
+            print "Concentration interpolation failed."
+            r20 = r80 = -1
+        
         return  5*np.log10(r80/r20)
         
     def get_gini(self, image):
@@ -356,64 +301,77 @@ class Galaxy(object):
         '''
         print "calculating Gini..."
 
-        gflag = 0
-
-        # create aperture at center of galaxy
-        ap = utils.EllipticalAperture( (self.x, self.y), self.rp, \
-                                            self.rp/self.e, self.theta, \
-                                            image)
-
-        # create galaxy and background masks from aperture
-        #apmask = ap.aper.astype('float')
-        #bkgmask = np.logical_not(apmask).astype('float')
-        
+        # Create aperture at center of galaxy 
+        # (Using my Aperture, not photutils, because I want access to the 
+        # individual pixels/mask -- not just a sum of pixel values
+        ap = utils.EllipticalAperture((self.x, self.y), self.rp, self.rp/self.e,
+                                      self.theta, image)
         pixels = ap.aper * image
         galpix = pixels[pixels > 0.]
-        # sort galpixels
+
         galpix_sorted = sorted(galpix)
-        # calculate the mean
         xbar = np.mean(galpix_sorted)
         n = len(galpix_sorted)
 
-        #calculate G
+        # calculate G
         gsum = [2*i-n-1 for i, p in enumerate(galpix_sorted)]
         g = 1/(xbar*n*(n-1))*np.dot(gsum, galpix_sorted)
 
-        #pdb.set_trace()
-
-        plt.figure()
-        imgplot = plt.imshow(pixels[200:300, 200:300], cmap='gray_r', origin='lower')
-        imgplot.set_clim(-0.009, 0.022)
-        #plt.savefig('output/aperture/'+self.name+'_aperG.png')
-        plt.close()
-
-        #pdb.set_trace()
-
-        if g > 1:
-            gflag = 1
-
-        return g, gflag
+        return g
             
     def get_m20(self, image):
 
         print "Calculating M20..."
         
-        shape = image.shape
-        imgcenter = np.array([shape[0]/2., shape[1]/2.])
+        center = [image.shape[0]/2., image.shape[1]/2.]
         galcenter = np.array([self.x, self.y])
-        delta = imgcenter - galcenter
 
-        # create fine grid over which we'll calculate Mtot 
-        # want to minimize this --> not compute over the whole image
-        # choose a square ~ 1 petro rad in each direction from center? 
-        x = y = np.arange(imgcenter[0]-round(0.5*self.rp), 
-                          imgcenter[0]+round(0.5*self.rp))
+        mxrange = [center[0]-round(0.5*self.rp), center[0]+round(0.5*self.rp)]
+        myrange = [center[1]-round(0.5*self.rp), center[1]+round(0.5*self.rp)]
+        #x = range(mxrange[0], mxrange[1])
+        #y = range(myrange[0], myrange[1])
+        x, y = np.ogrid[mxrange[0]:mxrange[1], myrange[0]:myrange[1]]
+
+        # Create a "distance grid" - each element's value is it's distance
+        # from the center of the image for the entire image
+        x2, y2 = np.ogrid[:image.shape[0], :image.shape[1]]      
+        dist_grid = (center[0] - x2)**2 + (center[1] - y2)**2
+
+        # create aperture at center of galaxy (mask)
+        gal_aper = utils.EllipticalAperture(center, self.rp, self.rp/self.e,
+                                            self.theta, image)
+
+        # We want the 0.0 element in dist_grid to correspond to each "test"
+        # center that we calculate Mtot on so we have to shift the dist_grid
+        # for each calculation of Mtot
+        mtots = []
+        for i in x:
+            for j in y.transpose():
+                indices0 = range(center[0]-i, center[0]-i + 
+                                     dist_grid.shape[0])
+                indices1 = range(center[1]-j, center[1]-j + 
+                                     dist_grid.shape[1])
+                shift_grid = dist_grid.take(indices0, axis=0, mode='wrap')\
+                                      .take(indices1, axis=1, mode='wrap')
+                mtots.append(np.sum(gal_aper.aper*image*shift_grid))
+
+        Mtot1 = np.min(mtots)
+        mtots = np.array(mtots).reshape([len(x), len(y.transpose())])
+        xc = x[np.where(mtots == Mtot1)[0]]
+        yc = y.transpose()[np.where(mtots == Mtot1)[1]]
+
+        #grid = dist_grid.take(center[0]-xc, center[0]-xc+dist_grid.shape[0])\
+        #                .take(center[1]-yc, center[1]-yc+dist_grid.shape[1])
+
+        print Mtot1, xc, yc
+        pdb.set_trace()
+
+        '''
+        ##############################################################3
+        # Old Method: 
+        x = y = np.arange(center[0]-round(0.5*self.rp), 
+                          center[0]+round(0.5*self.rp))
         xx, yy = np.meshgrid(x, y)
-
-        # at each point in that grid we'll compute Mtot
-        # so we need a "distance" grid for each point
-        # distance grid: the distance of every other pixel to that point
-
         # distance grid: 
         x2, y2 = np.ogrid[:image.shape[0], :image.shape[1]]
 
@@ -421,13 +379,17 @@ class Galaxy(object):
                       zip(xx.flatten(), yy.flatten())]
 
         # create aperture at center of galaxy (mask)
-        gal_aper = utils.EllipticalAperture(imgcenter, 
+        gal_aper = utils.EllipticalAperture(center, 
                             self.rp, self.rp/self.e, self.theta, image)
 
-        mtots = [np.sum(gal_aper.aper*image*grid) for grid in dist_grids]
-        Mtot = np.min(mtots)
-        xc, yc = xx.flatten()[mtots == Mtot], yy.flatten()[mtots == Mtot]
-        dist_grid = dist_grids[np.where(mtots == Mtot)[0]]
+        mtots2 = [np.sum(gal_aper.aper*image*grid) for grid in dist_grids]
+        Mtot2 = np.min(mtots2)
+        xc2, yc2 = xx.flatten()[mtots2 == Mtot2], yy.flatten()[mtots2 == Mtot2]
+        grid2 = dist_grids[np.where(mtots2 == Mtot2)[0]]
+
+        print Mtot2, xc2, yc2
+        pdb.set_trace()
+        '''       
 
         # Once we have a minimized mtot and the galcenter that minimizes it
         # we can calculate M20!
@@ -441,10 +403,7 @@ class Galaxy(object):
                                    reverse=True)])
         galpix_sorted = np.array(sorted(galpix.flatten(), reverse=True))
 
-        # compute 0.2 * ftot
         ftot20 = 0.2*np.sum(galpix_sorted)
-
-        # compute the cumulative sum of galpix_sorted -- 
         fcumsum = np.cumsum(galpix_sorted)
 
         # find where fcumsum is less than ftot20 -- 
@@ -456,13 +415,6 @@ class Galaxy(object):
 
         M20 = np.log10(np.sum(m20_galpix*m20_distpix)/Mtot)
 
-        fig, ax = plt.subplots()
-        
-        imgplot = ax.imshow(image, cmap='gray_r')
-        imgplot.set_clim(-0.01, 0.03)
-
-        plt.close()
-        
         return M20, (xc[0], yc[0])
         
     def table(self): 
