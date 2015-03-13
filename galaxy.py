@@ -363,8 +363,6 @@ class Galaxy(object):
         #grid = dist_grid.take(center[0]-xc, center[0]-xc+dist_grid.shape[0])\
         #                .take(center[1]-yc, center[1]-yc+dist_grid.shape[1])
 
-        print Mtot1, xc, yc
-        pdb.set_trace()
 
         '''
         ##############################################################3
