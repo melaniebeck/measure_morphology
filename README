@@ -1,31 +1,30 @@
 Various catalogs and what they contain:
 
 
-1. bigsample_mycatv6.fits 
+bigsample_mycatv6.fits 
 	contains: rpet, asymmetry (calculated my way with 1.5*rpet)
 
-2. bigsample_mycatv7.fits
+bigsample_mycatv7.fits
 	contains: rpet, asymmetry (calculated CS's way with 1.5*rpet)
 
-3. bigsample_mycat_1rpet_v8.fits
+bigsample_mycat_1rpet_v8.fits
 	contains: rpet, asymmetry (calculated CS's way with 1*rpet)
 
-4. bigsample_mycat_v9.fits
-	contains: rpet, asymmetry (as in 3), concentration (calculated with elliptical annuli)
+bigsample_mycat_v9.fits
+	contains: rpet, asymmetry (as in 3), concentration (calculated with 
+	elliptical annuli)
 
-5. bigsample_mycat_v10.fits
-	contains: rpet, asymmetry (as in 3), concentration (calculated with circular annuli)
+bigsample_mycat_v10.fits
+	contains: rpet, asymmetry (as in 3), concentration (calculated with 
+	circular annuli)
 
-6. bigsample_mycat_v11_wG.fits
+bigsample_mycat_v11_wG.fits
 	contains: rpet and Gini only but Gini is all kinds of messed up
 
-7. bigsample_mycat_v12.fits
+bigsample_mycat_v12.fits
 	contains: rpet and Gini only and Gini is good!
 
+bigsample_mycat_v13.fits
+    contains: rpet and M20 only. M20 is not great -- lots of outliers; Mtot 
+    centers need to be looked at again
 
-
-Concerning the Flags produced by utils2.clean_frame
-0: (Fdist - Bdist) < 10 and Bdist < 10
-1: (Fdist - Bdist) > 10 and Bdist < 10 and Barea > 0.75 Farea and Barea < Farea
-2: (Fdist - Bdist) > 10 and Bdist < 10 and Farea > 1.5 Barea
-3: 

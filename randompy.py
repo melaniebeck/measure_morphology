@@ -3,6 +3,7 @@
 
 import os
 import string
+import argparse
 import pyfits as fits
 import numpy as np
 from astropy.table import Table
@@ -572,36 +573,97 @@ def analyse_cleaning():
         f.write('output/datacube2/f_%s\n'%n['name'])
     f.close()
     
-    
 
-
-    exit()
     
 def main():
-
-    zestdata = 'bigsample_zest.fits'
-    dataset = 'bigsample_mycat_v13.fits'
+    
+    parser = argparse.ArgumentParser(description='Compare my catalog with ZEST\nPlots Concentration, Asymmetry, Gini, and M20 of the two catalogs')
+    parser.add_argument('catalog1', type=str, 
+        help='ZEST catalog name')
+    parser.add_argument('catalog2', type=str,
+        help='My catalog name')
+    args = parser.parse_args()
 
     #comparecatalogs()
     #plotzestcassatamine()
-    
     #selectnewsample()
     #plotpetrorad_largesample()
-    
     #plotasymmetry()
     #plotconcentration()
-
     #testbackground()
-    
     #plotgini(zestdata, dataset)
-
     #plotM20(zestdata, dataset)
-
-    analyse_cleaning()
+    #analyse_cleaning()
     #pdb.set_trace()
+
+    z = Table.read(args.catalog1, format='fits')
+    m = Table.read(args.catalog2, format='ascii', delimiter=' ')
+
+    names = ['cat', 'oflag', 'uflag', 'ra', 'dec', 'e', 'x', 'y', 'a', 
+             'b', 'theta', 'elipt', 'kron', 'Rp', 'Rpflag', 'Rp_SB', 
+             'r20', 'r80', 'C', 'A', 'G1', 'G2', 'M1', 'M2']
+    names2 = ['Ac', 'Mc1', 'Mc2', 'med', 'rms' ]
+
+    # rename the columns cuz I messed up saving the table
+    for i,n in enumerate(names):
+        m.rename_column('col'+str(i+1), n)
+
+    fig = plt.figure(figsize=(10,8))
+    gs = plt.GridSpec(2,3)
+
+    cut = np.where(m['uflag'] != 0)
+
+    pdb.set_trace()
+
+    # plot Petrosian Radius
+    ax1 = fig.add_subplot(gs[0,0])
+    ax1.plot(z['rpet'][cut], m['Rp'][cut],'ro', [0,200],[0,200], 'k--')
+    ax1.set_ylim(-5., 200.)
+    ax1.set_xlim(-5., 200.)
+    ax1.set_title('Petrosian Radius')
+
+    # plot Concentration
+    ax2 = fig.add_subplot(gs[0,1])
+    ax2.plot(z['cc'][cut], m['C'][cut], 'ro', [1,5], [1,5], 'k--')
+    ax2.set_ylim(1., 6.)
+    ax2.set_title('Concentration')
+
     
-    exit()
-    
+    # plot Asymmetry
+    ax3 = fig.add_subplot(gs[0,2])
+    ax3.plot(z['aa'][cut], m['A'][cut], 'ro', [-.2,.5], [-.2,.5], 'k')
+    ax3.vlines(0., -.3, .8, linestyle='--', color='k')
+    ax3.hlines(0., -0.2, .5, linestyle='--', color='k')
+    ax3.set_ylim(-0.3, .8)
+    ax3.set_xlim(-.2, .5)
+    ax3.set_title('Asymmetry')
+
+
+    # plot Gini 
+    ax4 = fig.add_subplot(gs[1,0])
+    ax4.plot(z['gg'][cut], m['G2'][cut], 'ro',  [0,1], [0,1], 'k--')
+    ax4.set_ylim(-0.25, 1.)
+    ax4.set_xlim(0., 1.)
+    ax4.set_title('Gini')
+
+    # plot M201
+    ax5 = fig.add_subplot(gs[1,1])
+    ax5.plot(z['m20'][cut], m['M1'][cut], 'ro', [-3.,0.], [-3.,0.], 'k--')
+    ax5.set_title('M20')
+
+    # BONUS PLOT
+    ax6 = fig.add_subplot(gs[1,2])
+    ax6.plot(z['m20'][cut], m['M2'][cut], 'ro', [-3.,0.], [-3.,0.], 'k--')
+    ax6.set_title('M20')
+
+
+    gs.tight_layout(fig)
+    plt.savefig('compare_catalogs.png')
+    plt.show()
+    plt.close()
+
+    pdb.set_trace()
+
 if __name__ == '__main__':
     main()
 

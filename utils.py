@@ -119,6 +119,44 @@ def shift_image(data, deltax, deltay, phase=0, nthreads=1, use_numpy_fft=False,
 
 #----------------------------------------------------------------------------------#
 
+def get_SB_Mask(Rp, Rp_SB, image, outname):
+    '''
+    Used to create a mask defining pixels belonging to a galaxy based on 
+    the surface brightness at 1 Petrosian radius
+
+    Steps:
+    1. convolve cleaned galaxy image with a Gaussian with sig=Rp/5
+       (Lotz et al 2004)
+    2. measure the SB, mu, at Rp
+    3. pixels in smoothed image with flux >= mu are assigned to the mask
+    4. Return the mask
+    '''
+    conv = ndimage.gaussian_filter(image, sigma=Rp/5)
+    convimg = fits.ImageHDU(data=conv)
+    convimg.writeto('output/gini/'+outname+'_conv.fits', clobber=True)
+
+    mask = np.array([True if conv[x] >= Rp_SB else False \
+                     for x in np.ndindex(conv.shape)])
+    mask = mask.reshape(conv.shape).astype('float')
+
+    label_img, num_labels = ndimage.label(mask)
+    
+    # if there exists more than one object in the mask, we need to isolate the
+    # correct one -- our object at the center
+    if num_labels > 1:
+        mask2 = np.array([True if label_img[x] == label_img[251, 251] \
+                             else False for x in np.ndindex(conv.shape)])
+        mask2 = mask2.reshape(conv.shape).astype('float')
+
+        mm = fits.ImageHDU(data=mask2)
+        mm.writeto('output/gini/'+outname+'_mask.fits', clobber=True)
+        return mask2
+    else: 
+        mm = fits.ImageHDU(data=mask)
+        mm.writeto('output/gini/'+outname+'_mask.fits', clobber=True)
+        return mask
+
+
 class EllipticalAperture(object):
 
     def __init__(self, xycenter, a, b, theta, data):
@@ -126,40 +164,75 @@ class EllipticalAperture(object):
         self.a, self.b = a, b
         self.theta = theta
         self.data = data
-        #self.radius = radius
-        #self.skyradius = skyradius
+        #self.absval = absval
 
         self.aper = self.make_aperture()
-        #self.skyaper = self.make_aperture(self.radius,self.skyradius)
+        self.phot = self.photometry()
 
 
     def make_aperture(self):
-        u,v = [], [] 
-        for x,y in np.ndindex(self.data.shape):
-            point = (x-self.x, y-self.y)
-            cosang = np.cos(self.theta)
-            sinang = np.sin(self.theta)
-            xtemp = point[0]*cosang + point[1]*sinang
-            ytemp = -point[0]*sinang + point[1]*cosang
-            u.append(xtemp**2)
-            v.append(ytemp**2)
-            
-        ellipse1 = np.array([u0/self.a**2 + v0/self.b**2 for u0, v0 in zip(u, v)])
+        cosang = np.cos(self.theta+np.pi/2.)
+        sinang = np.sin(self.theta+np.pi/2.)
+        xprime = np.array([(self.x-x)*cosang - (self.y-y)*sinang \
+                           for x,y in np.ndindex(self.data.shape)])
+        yprime = np.array([(self.x-x)*sinang + (self.y-y)*cosang \
+                           for x,y in np.ndindex(self.data.shape)])
 
-        mask = np.array([True if ellipse1[x] <= 1 else False \
-                         for x in np.ndindex(ellipse1.shape)])
+        ellipse = np.array([u**2/self.a**2 + v**2/self.b**2 \
+                            for u,v in zip(xprime, yprime)])
+
+        mask = np.array([True if ellipse[x] <= 1 else False \
+                         for x in np.ndindex(ellipse.shape)])
         mask = mask.reshape(self.data.shape)
 
         '''
-        ellipse = Ellipse([self.xc, self.yc], self.a, self.b, self.theta)
+        ellipse = Ellipse([self.x, self.y], self.a, self.b, self.theta)
         mask = np.array([True if ellipse.contains_point([x,y]) 
                          else False for x,y in np.ndindex(self.data.shape)])
         mask = mask.reshape(self.data.shape)
-        #'''
-        #pdb.set_trace()
-
+        
+        pdb.set_trace()
+        '''
         return mask.astype('float')
-    
+
+    def plot(self, ax=None, fill=False,  **kwargs):
+        '''
+        pts = np.zeros((361,2))
+        beta = self.theta
+        sin_beta = np.sin(beta)
+        cos_beta = np.cos(beta)
+
+        alpha = np.radians(np.r_[0.:360.:1j*(361)])
+        sin_alpha = np.sin(alpha)
+        cos_alpha = np.cos(alpha)
+
+        pts[:,0] = self.x + (self.a*cos_alpha*cos_beta - 
+                             self.b*sin_alpha*sin_beta)
+        pts[:,1] = self.y + (self.a*cos_alpha*sin_beta + 
+                             self.b*sin_alpha*cos_beta)
+        '''
+        
+        kwargs['fill'] = fill
+
+        if ax is None:
+            ax = plt.gca()
+
+        theta_deg = self.theta*180./np.pi
+        patch = Ellipse((self.x, self.y), 2.*self.a, 2*self.b, 
+                        theta_deg, **kwargs)
+        ax.add_patch(patch)
+
+        #ax.plot(pts[:,0], pts[:,1], **kwargs)
+
+    def photometry(self):
+        #if self.asbval:
+        return np.sum(np.abs(self.aper * self.data))
+        #else:
+        #    return np.sum(self.aper * self.data)
+
+    def area(self):
+        return len(self.aper[self.aper != 0.])
+
     @staticmethod
     def num_pix(weights):
         return np.sum(weights)    

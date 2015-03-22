@@ -70,6 +70,17 @@ def savedata(mode, hdr, galnumber, data=[], names=[]):
 
     return datacube
 
+def clean_directory(outdir):
+    if os.path.isfile(outdir+"*bright*.fits"):
+        os.system("rm "+outdir+"*bright*.fits")
+
+    if os.path.isfile(outdir+"*faint*.fits"):
+        os.system("rm "+outdir+"*faint*.fits")
+
+    if os.path.isfile(outdir+"*smooth*.fits"):
+        os.system("rm "+outdir+"*smooth*.fits")
+
+
 def clean_frame(image, outdir, sep=17.):
     '''
     Gonna try a two-stage method of cleaning:
@@ -262,7 +273,7 @@ def clean_frame(image, outdir, sep=17.):
                             names=['BSEG', 'FSEG', 'CAT'])
 
     elif mode == 'FAINT':
-        datacube = savedata(mode, ihdr, FIndex, data=[bseg, fseg, fcat], 
+        datacube = savedata(mode, ihdr, BIndex, data=[bseg, fseg, bcat], 
                             names=['BSEG', 'FSEG', 'CAT'])
 
     elif mode == 'FAINT2':
@@ -278,8 +289,8 @@ def clean_frame(image, outdir, sep=17.):
 
         
     # SAVE ALL PRODUCTS TO DATA CUBE
-    datacube.insert(0, fits.ImageHDU(data=img, header=ihdr, name='ORG'))
     datacube.insert(0, fits.ImageHDU(data=cln, header=ihdr, name='CLN'))
+    datacube.insert(1, fits.ImageHDU(data=img, header=ihdr, name='ORG'))
 
     newthing = fits.HDUList()
     for thing in datacube: 
@@ -290,7 +301,7 @@ def clean_frame(image, outdir, sep=17.):
 
 
     # Now that we've done the cleaning -- Let's test it!    
-    run_sextractor.run_SE(outdir+'f_'+basename+'.fits[1]', 'FAINT', 
+    run_sextractor.run_SE(outdir+'f_'+basename+'.fits', 'FAINT', 
                           outdir, outstr2='test')
     tseg = fits.getdata(outdir+'f_'+basename+'_faint_test_seg.fits')
     tcat = fits.getdata(outdir+'f_'+basename+'_faint_test_cat.fits')
@@ -307,16 +318,12 @@ def clean_frame(image, outdir, sep=17.):
 
     uFlag = 0
     # If we find large objs far from the center then we didn't clean enough
-    if (np.any(dist[1::] > 2*sep)) & (np.any(tarea[1::] > 100.)):
+    if (np.any(dist[1::] > 3*sep)) & (np.any(tarea[1::] > 100.)):       
         print 'UNDER CLEANED!!'
         uFlag = 1
 
-
     # clean up directory
-    os.system("rm "+outdir+"*bright*.fits")
-    os.system("rm "+outdir+"*faint*.fits")
-    os.system("rm "+outdir+"*smooth*.fits")
+    clean_directory(outdir)
 
     #FIndex, Fdist, Bdist, DIST, Farea, Barea,
     return  [category, oFlag, uFlag]
-
