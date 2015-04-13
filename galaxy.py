@@ -6,6 +6,7 @@ import os
 import string
 import pdb
 import pyfits as fits
+import bisect
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.ndimage.interpolation as sp_interp
@@ -29,9 +30,15 @@ class Galaxy(object):
     def __init__(self, hdulist, filename, flags):
         
         # initialize fits image & catalog data
-        image = hdulist['CLN'].data
+        try:
+            image = hdulist['UCLN'].data
+            catinfo = hdulist['UCLN'].header['SECATIDX']
+        except:
+            image = hdulist['CLN'].data
+            catinfo = hdulist['CLN'].header['SECATIDX']
+
+        cat = hdulist['CAT'].data[catinfo]
         segmap = hdulist['FSEG'].data
-        cat = hdulist['CAT'].data[hdulist['CLN'].header['SECATIDX']]
 
         # flags and naming attributes
         self.cat = flags[0]
@@ -53,18 +60,22 @@ class Galaxy(object):
         # morphological attributes
         self.Rp, self.Rp_SB, self.Rpflag = self.get_petro(image)
         self.elipt = cat['ELLIPTICITY']            
-        if self.Rp > 0.:
-            self.A, self.Acx, self.Acy = self.get_asymmetry(image)
-            self.r20, self.r80, self.C = self.get_concentration(image)
-            self.G1, self.G2 = self.get_gini(image)
-            self.M1, self.M2, self.Mcx1, \
-            self.Mcy1, self.Mcx2, self.Mcy2 = self.get_m20(image)
+        if not np.isnan(self.Rp):
+            #self.A, self.Acx, self.Acy = self.get_asymmetry(image)
+            #self.r20, self.r80, self.C = self.get_concentration(image)
+            self.G1 = self.get_gini1(image)
+            #self.M1, self.Mcx1, self.Mcy1 = self.get_m20_1(image)
+            #self.mask = utils.get_SB_mask(self.Rp, self.Rp_SB, image, self.name)
+            #if not isinstance(self.mask, int):
+            self.G2 = self.get_gini2(image)
+            #self.M2, self.Mcx2, self.Mcy2 = self.get_m20_2(image)
+                
         else:
-            self.A, self.Acx, self.Acy = np.nan, self.x, self.y
-            self.r20, self.r80, self.C = -1, -1, np.nan
+            #self.A, self.Acx, self.Acy = np.nan, self.x, self.y
+            #self.r20, self.r80, self.C = np.nan, np.nan, np.nan
             self.G1, self.G2 = np.nan, np.nan 
-            self.M1, self.M2, self.Mcx1, self.Mcy1, self.Mcx2, \
-                self.Mcy2 = np.nan,np.nan, self.x, self.y, self.x, self.y
+            #self.M1, self.Mcx1, self.Mcy1 = np.nan, self.x, self.y
+            #self.M2, self.Mcx2, self.Mcy2 = np.nan, self.x, self.y
 
         #dir(self) in cmd line to see all the hidden shits
 
@@ -76,6 +87,8 @@ class Galaxy(object):
         #median = np.median(data[segmap==0])
         #rms = np.sqrt(np.mean(np.square(data[segmap==0])))
         return median, std
+
+    
   
     def get_petro(self, image):
         r_flag = 0
@@ -86,55 +99,48 @@ class Galaxy(object):
         b = a/self.e
         position = [self.x, self.y]
 
-        # determine flux (counts) in annuli at various radii
-        annuli_atR = np.hstack([EllipticalAnnulus(position, a[idx-1], a[idx+1], 
-                                              b[idx+1], self.theta) \
-                                for idx in range(1,len(a[:-1]))])
-        counts_atR = np.hstack([aperture_photometry(image, an,method='center')\
-                                for an in annuli_atR])['aperture_sum']
+        annuli = np.hstack([EllipticalAnnulus(position, radius, a[idx+1], 
+                                              b[idx], self.theta) \
+                            for idx, radius in enumerate(a[:-1])])
+        
+        counts = np.hstack([aperture_photometry(image, an, method='exact')\
+                            for an in annuli])['aperture_sum']
+        areas = [an.area() for an in annuli]
 
-        annuli_inR = np.hstack([EllipticalAnnulus(position, a[idx-1], a[idx], 
-                                                  b[idx], self.theta) \
-                                for idx in range(1,len(a[:-1]))])
-        counts_inR = np.hstack([aperture_photometry(image, an,method='center')\
-                                for an in annuli_inR])['aperture_sum']
+        sb_counts = np.array([c+counts[i+1] for i, c in enumerate(counts[:-1])])
+        avgsb_counts = np.array([np.sum(counts[0:i+1]) for \
+                                 i, c in enumerate(counts[:-1])])
 
-        areas_atR = np.array([an.area() for an in annuli_atR])
-        areas_inR = np.array([an.area() for an in annuli_inR])
+        sb_areas = np.array([ar+areas[i+1] for i, ar in enumerate(areas[:-1])])
+        avgsb_areas = np.array([np.sum(areas[0:i+1]) for \
+                                i, ar in enumerate(areas[:-1])])
 
-        # surface brightness = total counts / area
-        sb = self._sb = counts_atR/areas_atR   
-
-        # average surface brightness is the cumulative sum of the counts within
-        # the radius, R, divided by the cumulative area within in the same R 
-        num = len(counts_inR)+1
-        csum = np.array([np.sum(counts_inR[0:idx]) for idx in range(1, num)])
-        asum = np.array([np.sum(areas_inR[0:idx]) for idx in range(1, num)])
-        avgsb = self._avgsb = csum/asum  
-
+        sb = self._sb = sb_counts/sb_areas   
+        avgsb = self._avgsb = avgsb_counts/avgsb_areas
+        self._ratio = sb/avgsb
+        
         # need to test whether sb continues to decrease or if it's contaminated
         # by nearby light from other sources that wasn't fully cleaned
-        # To do this: test for monotonicity of sb/avgsb beyond self.a (as given by 
-        # SExtractor) 
+        # To do this: test for monotonicity of sb/avgsb beyond self.a 
+        # (as given by SExtractor) 
         
         sb_avgsb = sb/avgsb
-        tail = np.where(a[1:-1] >= self.a)
-        test = sb_avgsb[tail]
-        dx = np.diff(test)
-        import bisect
+        tail = np.where(a[1:-1] >= .8*self.a)
+        dx = np.diff(sb_avgsb[tail])
         loc = bisect.bisect(dx, 0.)
-        tofitfrom = tail[0][loc+1]
-
-        fit = np.polyfit(a[tofitfrom+1:-1], sb[tofitfrom::], deg=0)
-        p = np.poly1d(fit)
         
-        newsb = np.concatenate((sb[0:tofitfrom], sb[tofitfrom::]-fit[0]), axis=1)
+        if loc: 
+            fitloc = tail[0][loc]
+            fit = np.polyfit(a[fitloc+1:-1], sb[fitloc::], deg=0)
 
-        plt.plot(a[1:-1], sb, 'k', a[1:-1], newsb, 'r')
-        plt.axhline(0.)
-        plt.show()
-        #test_at = np.where(a[1:-1]>self.a)[0][test + 1]
-        pdb.set_trace()
+            if fit > 0.:
+                newsb = np.concatenate((sb[0:fitloc], 
+                                        sb[fitloc::]-fit[0]), axis=1)
+                subtract = sb_counts-newsb*sb_areas
+                newavgsb = (avgsb_counts - subtract)/avgsb_areas
+                self._sb = newsb
+                self._avgsb = newavgsb
+                self._newratio = newsb/newavgsb
 
         '''
         # estimate error for SB and <SB>
@@ -149,26 +155,31 @@ class Galaxy(object):
         # now we need to find the intersection of sb/<sb> with 0.2:
         # define a finer spacing of radii to interpolate onto
         self._rads = a[1:-1]
-        radii, ratios = utils.get_interp(self._rads, sb/avgsb)
+        radii, ratios = utils.get_interp(self._rads, self._sb/self._avgsb)
         self._interprads, self._interpvals = radii, ratios
 
-        params=self.__dict__
-        galaxy_plot.petro_SB2(params)
-        
-        pdb.set_trace()
+        #params=self.__dict__
+        #galaxy_plot.petro_SB2(params)
+        #galaxy_plot.petro_radius2(params, image)
+        #pdb.set_trace()
 
         if not np.any(np.isnan(ratios)):
             rp = utils.get_intersect(ratios, 0.2, radii, mono='dec')
-            if rp > -1:
+            
+            # if the ratio of rp/a is huge, something went wrong
+            # this is a last ditch effort to catch strays
+            if (rp > 0): 
                 # Determine Surface Brightness at 1 Rp
                 newsb = interp1d(self._rads, sb)
                 rp_sb = newsb(rp)
+                if rp_sb < 0:
+                    rp_sb = np.nan
             else:
-                rp_sb, r_flag = -1, 1
+                rp_sb, r_flag = np.nan, 1
             return rp, rp_sb, r_flag
         else:
             print "Petrosian interpolation failed!"
-            rp, rp_sb, r_flag = -1, -1, 2
+            rp, rp_sb, r_flag = np.nan, np.nan, 2
             return rp, rp_sb, r_flag
  
 
@@ -219,7 +230,6 @@ class Galaxy(object):
         galcenter = np.array([self.x, self.y])
         imgcenter = np.array([image.shape[0]/2., image.shape[1]/2.])
         delta = imgcenter - galcenter
-
         aper = EllipticalAperture(imgcenter, self.Rp, self.Rp/self.e,self.theta)
         bkg_asym = self.bkg_asymmetry(aper)
 
@@ -319,43 +329,24 @@ class Galaxy(object):
             r80 = utils.get_intersect(interp_ratio, 0.8, interp_radii)
         else:
             print "Concentration interpolation failed."
-            r20 = r80 = -1
+            r20 = r80 = np.nan
         
         return r20, r80, 5*np.log10(r80/r20)
         
-    def get_gini(self, image):
-        '''
-        Need all pixels associated with a galaxy -- use my aperture thing? 
-        1. All pixels within 1 Rp
-        2. All pixels above the mean SB at 1 Rp
-        Gonna do 1. for  now but want to try 2. as well
-        '''
-        print "calculating Gini..."
-
-        # Create aperture at center of galaxy 
-        # (Using my Aperture, not photutils, because I want access to the 
-        # individual pixels/mask -- not just a sum of pixel values
+    def get_gini1(self, image):
+        print "calculating Gini(1)..."
 
         # Mask 1: galaxy pixels defined exactly within 1 petrosian radius
         ap = utils.EllipticalAperture((self.x, self.y), self.Rp, self.Rp/self.e,
                                       self.theta, image)
         mask1 = ap.aper * image
-
-        # Mask 2: galaxy pixels defined as those with flux >= SB at 1 petro rad
-        mask2 = utils.get_SB_Mask(self.Rp, self.Rp_SB, image, self.name)*image
-
-        galpix = [mask1[mask1 != 0.], mask2[mask2 != 0.]]
-
-        ginis = []
-        for pix in galpix:
-            galpix_sorted = sorted(np.abs(pix))
-            xbar = np.mean(galpix_sorted)
-            n = len(galpix_sorted)
-
-            factor = 1/(xbar*n*(n-1))
-            #print xbar, factor, n
-            gsum = [2*i-n-1 for i, p in enumerate(galpix_sorted)]
-            ginis.append(factor*np.dot(gsum, galpix_sorted))
+        galpix = mask1[np.where(mask1 != 0.)].flatten()
+        galpix_sorted = sorted(np.abs(galpix))
+        xbar = np.mean(galpix_sorted)
+        n = len(galpix_sorted)
+        factor = 1/(xbar*n*(n-1))
+        gsum = [2*i-n-1 for i, p in enumerate(galpix_sorted)]
+        gini = factor*np.dot(gsum, galpix_sorted)
         '''
         for pix in galpix:
             galpix_sorted= sorted(pix)
@@ -368,19 +359,37 @@ class Galaxy(object):
             ginis.append(factor*np.dot(gsum, galpix_sorted))
         #'''
         #print "<S/N>:", stn
-        print ginis
+        #print ginis
 
-        return ginis 
-            
-    def get_m20(self, image):
+        return gini 
 
-        print "Calculating M20..."
+    def get_gini2(self, image):
+        print "calculating Gini(2)..."
+
+        # Mask 2: galaxy pixels defined as those with flux >= SB at 1 petro rad
+        mask2 = utils.get_SB_Mask(self.Rp, self.Rp_SB, image, self.name)*image
+        if isinstance(mask2, int):
+            return np.nan
+        
+        galpix = mask2[np.where(mask2 != 0.)].flatten()
+        galpix_sorted = sorted(np.abs(galpix))
+        xbar = np.mean(galpix_sorted)
+        n = len(galpix_sorted)
+        factor = 1/(xbar*n*(n-1))
+        gsum = [2*i-n-1 for i, p in enumerate(galpix_sorted)]
+        gini = factor*np.dot(gsum, galpix_sorted)
+
+        return gini
+
+    def get_m20_1(self, image):
+
+        print "Calculating M20(1)..."
         
         center = [image.shape[0]/2., image.shape[1]/2.]
         galcenter = np.array([self.x, self.y])
 
-        mxrange = [center[0]-round(0.5*self.Rp), center[0]+round(0.5*self.Rp)]
-        myrange = [center[1]-round(0.5*self.Rp), center[1]+round(0.5*self.Rp)]
+        mxrange = [center[0]-round(self.a), center[0]+round(self.a)]
+        myrange = [center[1]-round(self.a), center[1]+round(self.a)]
 
         x, y = np.ogrid[mxrange[0]:mxrange[1], myrange[0]:myrange[1]]
 
@@ -393,108 +402,112 @@ class Galaxy(object):
         gal_aper = utils.EllipticalAperture(center, self.Rp, self.Rp/self.e,
                                             self.theta, image)
         mask1 = gal_aper.aper*image
-        mask2 = utils.get_SB_Mask(self.Rp, self.Rp_SB, image, self.name)*image
 
-        # We want the 0.0 element in dist_grid to correspond to each "test"
-        # center that we calculate Mtot on so we have to shift the dist_grid
-        # for each calculation of Mtot
-        mtots1, mtots2 = [], []
+        mtots = []
         for i in x:
             for j in y.transpose():
                 indices0 = range(center[0]-i, center[0]-i + 
-                                     dist_grid.shape[0])
+                                 dist_grid.shape[0])
                 indices1 = range(center[1]-j, center[1]-j + 
-                                     dist_grid.shape[1])
+                                 dist_grid.shape[1])
                 shift_grid = dist_grid.take(indices0, axis=0, mode='wrap')\
                                       .take(indices1, axis=1, mode='wrap')
-                mtots1.append(np.sum(mask1*shift_grid))
-                mtots2.append(np.sum(mask2*shift_grid))
+                mtots.append(np.sum(mask1*shift_grid))
 
-        mtots = [mtots1, mtots2]
-        Mtot = [np.min(mtots1), np.min(mtots2)]
-        M20, xc, yc = [], [], []
-
-        mlevel = []
-        for idx, m in enumerate(mtots):
-
-            mtot = np.array(m).reshape([len(x), len(y.transpose())])
-            xc.append(x[np.where(mtot == Mtot[idx])[0]][0])
-            yc.append(y.transpose()[np.where(mtot == Mtot[idx])[1]][0])
-
-            indices0 = range(center[0]-xc[0],center[0]-xc[0]+dist_grid.shape[0])
-            indices1 = range(center[0]-yc[0],center[0]-yc[0]+dist_grid.shape[0])
-            grid = dist_grid.take(indices0, axis=0, mode='wrap')\
-                            .take(indices1, axis=1, mode='wrap')
-            
-            if idx == 0: 
-                # recreate the Aperture Mask now that we have the official 
-                # center (the other mask doesn't depend on where the center 
-                # is found since that mask is created based on SB cut
-                m20_aper = utils.EllipticalAperture((xc[0], yc[0]), self.Rp, 
+        Mtot = np.min(mtots)
+        mtot = np.array(mtots).reshape([len(x), len(y.transpose())])
+        xc = x[np.where(mtot == Mtot)[0]][0]
+        yc = y.transpose()[np.where(mtot == Mtot)[1]][0]
+        
+        indices0 = range(center[0]-xc,center[0]-xc+dist_grid.shape[0])
+        indices1 = range(center[0]-yc,center[0]-yc+dist_grid.shape[1])
+        grid = dist_grid.take(indices0, axis=0, mode='wrap')\
+                        .take(indices1, axis=1, mode='wrap')
+        
+        m20_aper = utils.EllipticalAperture((xc[0], yc[0]), self.Rp, 
                                             self.Rp/self.e, self.theta, image)
-                galpix = m20_aper.aper*image
-            else:
-                galpix = mask2
+        galpix = m20_aper.aper*image
 
-            # Sort the galaxy and grid pixels according to the descending order
-            # of the galaxy pixels
-            grid_sorted = np.array([i for j,i in sorted(zip(galpix.flatten(),\
-                                                             grid.flatten()),\
-                                                         reverse=True)])
-            galpix_sorted = np.array(sorted(galpix.flatten(), reverse=True))
+        grid_sorted = np.array([i for j,i in sorted(zip(galpix.flatten(),\
+                                                        grid.flatten()),\
+                                                    reverse=True)])
+        galpix_sorted = np.array(sorted(galpix.flatten(), reverse=True))
+        ftot20 = 0.2*np.sum(galpix_sorted)
+        fcumsum = np.cumsum(galpix_sorted)
+        m20_pix = np.where(fcumsum< ftot20)[0]
+        if len(m20_pix) != 0:
+            m20_galpix = galpix_sorted[m20_pix]
+            m20_distpix = grid_sorted[m20_pix]
+            M20 = np.log10(np.sum(m20_galpix*m20_distpix)/Mtot) 
+            self._Mlevel1 = np.min(m20_galpix)
+            return M20, xc[0], yc[0]
+        else:
+            self._Mlevel1 = np.nan
+            return np.nan, self.x, self.y
 
-            # Calculate the 20% of the total flux of the galaxy
-            ftot20 = 0.2*np.sum(galpix_sorted)
-            
-            # calculate the cumulative flux
-            fcumsum = np.cumsum(galpix_sorted)
+    def get_m20_2(self, image):
+
+        print "Calculating M20(2)..."
         
-            # find where fcumsum is less than ftot20 -- 
-            m20_pix_idx = np.where(fcumsum < ftot20)[0]
-            
-            # Calculate M20 from the brightest 20% of galaxy pixels
-            m20_galpix = galpix_sorted[m20_pix_idx]
-            m20_distpix = grid_sorted[m20_pix_idx]
-            pdb.set_trace()
-            M20.append(np.log10(np.sum(m20_galpix*m20_distpix)/Mtot[idx]))
-            
-            mlevel.append(np.min(m20_galpix))
-            
-        self._Mlevel1, self._Mlevel2 = mlevel[0], mlevel[1]
-        return M20[0], M20[1], xc[0][0], yc[0][0], xc[1][0], yc[1][0]
+        center = [image.shape[0]/2., image.shape[1]/2.]
+        galcenter = np.array([self.x, self.y])
 
+        mxrange = [center[0]-round(self.a), center[0]+round(self.a)]
+        myrange = [center[1]-round(self.a), center[1]+round(self.a)]
 
-        '''
-        ##############################################################3
-        # Old Method:
-        x = y = np.arange(center[0]-round(0.5*self.Rp), 
-                          center[0]+round(0.5*self.Rp))
-        xx, yy = np.meshgrid(x, y)
-        # distance grid: 
-        x2, y2 = np.ogrid[:image.shape[0], :image.shape[1]]
+        x, y = np.ogrid[mxrange[0]:mxrange[1], myrange[0]:myrange[1]]
 
-        dist_grids = [(x2-xi)**2 + (y2-yi)**2 for xi, yi in \
-                      zip(xx.flatten(), yy.flatten())]
+        x2, y2 = np.ogrid[:image.shape[0], :image.shape[1]]      
+        dist_grid = (center[0] - x2)**2 + (center[1] - y2)**2
 
-        # create aperture at center of galaxy (mask)
-        gal_aper = utils.EllipticalAperture(center, 
-                            self.Rp, self.Rp/self.e, self.theta, image)
-
-        mtots2 = [np.sum(gal_aper.aper*image*grid) for grid in dist_grids]
-        Mtot2 = np.min(mtots2)
-        xc2, yc2 = xx.flatten()[mtots2 == Mtot2], yy.flatten()[mtots2 == Mtot2]
-        grid2 = dist_grids[np.where(mtots2 == Mtot2)[0]]
-
-        print Mtot2, xc2, yc2
-        pdb.set_trace()
-        '''  
+        mask2 = utils.get_SB_Mask(self.Rp, self.Rp_SB, image, self.name)*image
+        if isinstance(mask2, int):
+            self._Mlevel2 = np.nan
+            return np.nan, xc[0], yc[0]
         
+        mtots = []
+        for i in x:
+            for j in y.transpose():
+                indices0 = range(center[0]-i, center[0]-i + 
+                                 dist_grid.shape[0])
+                indices1 = range(center[1]-j, center[1]-j + 
+                                 dist_grid.shape[1])
+                shift_grid = dist_grid.take(indices0, axis=0, mode='wrap')\
+                                      .take(indices1, axis=1, mode='wrap')
+                mtots.append(np.sum(mask2*shift_grid))
+
+        Mtot = np.min(mtots)
+        mtot = np.array(mtots).reshape([len(x), len(y.transpose())])
+        xc = x[np.where(mtot == Mtot)[0]][0]
+        yc = y.transpose()[np.where(mtot == Mtot)[1]][0]
+        
+        indices0 = range(center[0]-xc,center[0]-xc+dist_grid.shape[0])
+        indices1 = range(center[0]-yc,center[0]-yc+dist_grid.shape[0])
+        grid = dist_grid.take(indices0, axis=0, mode='wrap')\
+                        .take(indices1, axis=1, mode='wrap')
+        galpix = mask2
+        grid_sorted = np.array([i for j,i in sorted(zip(galpix.flatten(),\
+                                                        grid.flatten()),\
+                                                    reverse=True)])
+        galpix_sorted = np.array(sorted(galpix.flatten(), reverse=True))
+        ftot20 = 0.2*np.sum(galpix_sorted)
+        fcumsum = np.cumsum(galpix_sorted)
+        m20_pix = np.where(fcumsum < ftot20)
+        if len(m20_pix) != 0:
+            m20_galpix = galpix_sorted[m20_pix]
+            m20_distpix = grid_sorted[m20_pix]
+            M20 = np.log10(np.sum(m20_galpix*m20_distpix)/Mtot)
+            self._Mlevel2 = np.min(m20_galpix)
+            return M20, xc[0], yc[0]
+        else:
+            self._Mlevel2 = np.nan
+            return np.nan, xc[0], yc[0]
+
     def table(self, init=False): 
           
         the_dict = self.__dict__
         r = re.compile(r"_.+")
         matching_keys = filter(r.match, the_dict.keys())
-        #matching_keys.append('name')
         
         for key in matching_keys:
             del the_dict[key]
@@ -534,15 +547,16 @@ def main():
     args = parser.parse_args()
 
     fitsfiles = np.array(sorted(glob.glob(args.directory+'*.fits')))
-    fitsfiles = sorted(glob.glob(args.directory))
+    #fitsfiles = sorted(glob.glob(args.directory))
 
     #fitsfiles=np.full(10,fill_value=fitsfiles[0], dtype='|S80')
-    #fitsfiles = fitsfiles[30:40]
-    #pdb.set_trace()
+    #fitsfiles = fitsfiles[376]
     warnings.filterwarnings('ignore', message='Overwriting existing file .*',
                             module='pyfits')
 
     outdir = 'output/datacube/'
+
+    t = Table(names=('Rp', 'G1', 'G2'))
 
     for idx, f in enumerate(fitsfiles): 
         basename = os.path.basename(f)
@@ -557,21 +571,23 @@ def main():
         print "Running", os.path.basename(f)
         hdulist = fits.open(filename, memmap=True)
         g = Galaxy(hdulist, filename, flags)
-        if g.Rp > 0.:
+        '''
+        if not np.isnan(g.Rp):
             galaxy_plot.plot(g, hdulist)
-            if idx == 0:
-                t, gal_dict = g.table(init=True)
-                t.add_row(gal_dict)
-            else:
-                t.add_row(g.table())
+        if idx == 0:
+            t, gal_dict = g.table(init=True)
+            t.add_row(gal_dict)
         else:
             t.add_row(g.table())
+        '''
+        t.add_row((g.Rp, g.G1, g.G2))
         hdulist.close()
-        t.write(args.output, format='ascii.fixed_width')
+        #t.write(args.output, format='ascii.fixed_width')
         del g
 
-    print "Parameter catalog complete.\nSaving catalog to file..."
-    t.write(args.output, format='ascii')
+    t.write(args.output, format='ascii.fixed_width')
+    #print "Parameter catalog complete.\nSaving catalog to file..."
+    #t.write(args.output, format='ascii')
     exit()  
 
 

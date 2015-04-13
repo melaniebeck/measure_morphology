@@ -7,6 +7,8 @@ import pyfits as fits
 from random import gauss
 import run_sextractor
 from utils import find_closest
+import pdb
+import matplotlib.pyplot as plt
 
 def clean_pixels(data, mask, segmap):
     #mean = np.mean(data[segmap == 0])
@@ -61,7 +63,7 @@ def savedata(mode, hdr, galnumber, data=[], names=[]):
     datacube=[]
     hdr.set('SE_MODE', mode, 'Sextractor mode used to clean image')
     hdr.set('SECATIDX', galnumber, 
-             'Index in'+mode+'catalog denoting gal of interest')
+             'Index in '+mode+' catalog denoting gal of interest')
     for datum, name in zip(data, names):
         if name == 'CAT':
             datacube.append(fits.TableHDU(data=datum, name=name))
@@ -146,9 +148,13 @@ def clean_frame(image, outdir, sep=17.):
             # find the combined area of these two obj (pixels**2)
             Barea = bcat[area][BIndex] + bcat[area][B2Index]
 
-    coords = zip(fcat[x], fcat[y])
-    Fdist, FIndex, FCoord, Farea, aFlag = closest_above_thresh(fcat, area, 
-                                                               center, coords)
+    FIndex, Fdist = find_closest(center, zip(fcat[x], fcat[y]))
+
+    #if fcat[area][Index] < 50:
+    #    run_sextractor.run_SE(image, 'SMOOTH', outdir)
+    #    sseg = fits.getdata(segnames[2])
+    #    scat = fits.getdata(catnames[2])
+    #    Index, Dist = find_closest(center, zip(scat[x], scat[y]))
 
     DIST = abs(Fdist - Bdist)
 
@@ -301,26 +307,46 @@ def clean_frame(image, outdir, sep=17.):
 
 
     # Now that we've done the cleaning -- Let's test it!    
-    run_sextractor.run_SE(outdir+'f_'+basename+'.fits', 'FAINT', 
+    run_sextractor.run_SE(outdir+'f_'+basename+'.fits', 'SMOOTH', 
                           outdir, outstr2='test')
-    tseg = fits.getdata(outdir+'f_'+basename+'_faint_test_seg.fits')
-    tcat = fits.getdata(outdir+'f_'+basename+'_faint_test_cat.fits')
+    tseg = fits.getdata(outdir+'f_'+basename+'_smooth_test_seg.fits')
+    tcat = fits.getdata(outdir+'f_'+basename+'_smooth_test_cat.fits')
 
     coords = zip(tcat[x], tcat[y])
     index, dist = find_closest(center, coords, k=10)
-    tarea = tcat[area][index[np.where(dist != np.inf)]]
+    objarea = tcat[area][index[0]]
+    areas = tcat[area][np.where(tcat[area] != objarea)]
 
     # If we find obj near the center is too small then we overcleaned it
-    oFlag = 0
-    if (dist[0] < sep) & (tarea[0] < 50.): 
-        print 'OVERCLEANED!!!'
-        oFlag = 1
+    uFlag, oFlag = 0, 0
+    if (dist[0] < sep): 
+        if (objarea < 50.): 
+            print 'OVERCLEANED!!!'
+            oFlag = 1
 
-    uFlag = 0
-    # If we find large objs far from the center then we didn't clean enough
-    if (np.any(dist[1::] > 3*sep)) & (np.any(tarea[1::] > 100.)):       
-        print 'UNDER CLEANED!!'
-        uFlag = 1
+            # If we find large objs far from the center- didn't clean enough
+        if np.any(areas > 200.):       
+            print 'UNDER CLEANED!!'
+            uFlag = 1
+            
+            cln = clean_image(cln, tseg, tcat, index[0], tseg)
+            data = fits.open(outdir+'f_'+basename+'.fits')
+            data.insert(0,fits.ImageHDU(data=cln, name='UCLN'))
+            data['UCLN'].header.set('SECATIDX', index[0], 'Index in SECAT')
+            data['CAT'].data = tcat
+            data['FSEG'].data = tseg
+            data.writeto(outdir+'f_'+basename+'.fits', clobber=True,
+                             output_verify='silentfix')
+
+            #imgplt = plt.imshow(cln,cmap='gray_r')
+            #imgplt.set_clim(0., np.max(cln))
+            #plt.close()
+            #plt.show()
+            #pdb.set_trace()
+    else:
+        # if we don't find anything in the center anymore, something is wrong
+        # either overcleaned or blended into nearby object
+        oFlag, uFlag = 1, 1
 
     # clean up directory
     clean_directory(outdir)

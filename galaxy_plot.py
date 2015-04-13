@@ -42,7 +42,7 @@ def petro_radius(gal, image):
              ylim=(shape[1]-size, shape[1]+size))
 
     imgplot = plt.imshow(image, cmap='gray_r', origin='lower')
-    imgplot.set_clim(gal.med-.5*gal.rms, gal.med+10*gal.rms)
+    imgplot.set_clim(gal.med - 2*gal.rms, np.max(image.flatten())/2.)
     aper.plot(color='blue', lw=1.5, alpha=0.5)
 
     plt.title('1 Petrosian Radius') 
@@ -58,25 +58,27 @@ def petro_radius2(params, image):
     size = 2*params['Rp']
     aper = EllipticalAperture((params['x'], params['y']), params['Rp'], 
                               params['Rp']/params['e'], params['theta'])
+    
+    #iqr = np.percentile(imgflat, 75) - np.percentile(imgflat, 25)
+    #binsize = 2*iqr/len(imgflat)**(1./3.)
+    #print iqr, binsize
 
     fig = plt.figure(figsize=(8,8))
     gs = plt.GridSpec(3,3)
     ax = fig.add_subplot(gs[:,:])
-    plt.setp(ax, xlim=(shape[0]-size, shape[0]+size),
+    plt.setp(ax, xlim=(shape[0], shape[0]+size),
              ylim=(shape[1]-size, shape[1]+size))
 
     imgplot = plt.imshow(image, cmap='gray_r', origin='lower')
-    imgplot.set_clim(params['med']-.5*params['rms'], 
-                     params['med']+10*params['rms'])
+    imgplot.set_clim(np.min(image), np.max(image)/2.)
     aper.plot(color='blue', lw=1.5, alpha=0.5)
 
     plt.title('1 Petrosian Radius') 
     gs.tight_layout(fig)
     plt.savefig('output/figures/'+params['name']+'_RpAper.png')
+    plt.show()
     plt.close()
     
-    
-#def petro_SB(sb, avgsb, radii, interp_vals, interp_radii):
 def petro_SB(gal):
     '''
     Plot the SB as a function of radius
@@ -110,16 +112,25 @@ def petro_SB(gal):
     ax1.set_ylim(-0.005, np.max(sb)+0.2*np.max(sb))
     ax1.set_ylabel(r'$\mu$(R)', fontsize=16)
 
-    ax2.semilogx(radii, sb/avgsb, 'ro', label='SB/<SB>')
+    try:
+        ax2.semilogx(radii, gal._newratio, 'bo')
+    except:
+        pass
+        
+    ax2.semilogx(radii, gal._ratio, 'ro', label='SB/<SB>')
     #ax2.errorbar(radii, sb/avgsb, yerr=gal._ratio_err, fmt=None)
-    ax2.semilogx(interp_r, interp_v, 'k', label='Interpolation')
+    #ax2.semilogx(interp_r, interp_v, 'k', label='Interpolation')
     ax2.hlines(0.2, 1., np.max(radii), linestyle='--')
-    ax2.set_ylim(-0.05, 1.05)
+    ax2.vlines(gal.Rp,-0.5, 0.2, linestyle='-.')
+    ax2.text(.03, 0.05, "Rp = %3.2f"%gal.Rp, fontsize=16, color='k', 
+             transform=ax2.transAxes)
+    ax2.set_ylim(-0.5, 1.05)
     ax2.set_ylabel(r'$\mu$(R)/<$\mu$(<R)>', fontsize=16)
     #ax2.legend()
 
     gs.tight_layout(fig)
     plt.savefig('output/figures/'+gal.name+'_SBprofile.png')
+    #plt.show()
     plt.close()
     
     #plt.show()
@@ -134,9 +145,6 @@ def petro_SB2(gal):
     sb = gal['_sb']
     avgsb = gal['_avgsb']
     radii = gal['_rads']
-    #try:
-    interp_v = gal['_interpvals']
-    interp_r = gal['_interprads']
     
     xlims = [np.min(radii), np.max(radii)]
 
@@ -158,19 +166,23 @@ def petro_SB2(gal):
     ax1.set_ylim(-0.005, np.max(sb)+0.2*np.max(sb))
     ax1.set_ylabel(r'$\mu$(R)', fontsize=16)
 
-    ax2.semilogx(radii, sb/avgsb, 'ro', label='SB/<SB>')
+    try:
+        ax2.semilogx(radii, gal['_newratio'], 'r^')
+    except:
+        pass
+    ax2.semilogx(radii, gal['_ratio'], 'ro', label='SB/<SB>')
     #ax2.errorbar(radii, sb/avgsb, yerr=gal._ratio_err, fmt=None)
-    ax2.semilogx(interp_r, interp_v, 'k', label='Interpolation')
+    ax2.semilogx(gal['_interprads'], gal['_interpvals'], 'k')
     ax2.hlines(0.2, 1., np.max(radii), linestyle='--')
-    ax2.set_ylim(-0.05, 1.05)
+    ax2.set_ylim(-0.5, 1.05)
     ax2.set_ylabel(r'$\mu$(R)/<$\mu$(<R)>', fontsize=16)
     #ax2.legend()
 
     gs.tight_layout(fig)
     plt.savefig('output/figures/'+gal['name']+'_SBprofile.png')
+    plt.show()
     plt.close()
     
-    #plt.show()
 
 def asym_plot(gal, image):
     shape = [image.shape[0]/2., image.shape[1]/2.]
@@ -247,18 +259,21 @@ def m20_plot(gal, image):
     aperture = utils.EllipticalAperture((gal.Mcx1, gal.Mcy1), 
                                          gal.Rp, gal.Rp/gal.e, 
                                          gal.theta, image)
-    contours1 = measure.find_contours(image, gal._Mlevel1)
-    contours2 = measure.find_contours(image, gal._Mlevel2)
+    mask1 = aperture.aper*image
+    mask2 = utils.get_SB_Mask(gal.Rp, gal.Rp_SB, image, gal.name)*image
+
+    contours1 = measure.find_contours(mask1, gal._Mlevel1)
+    contours2 = measure.find_contours(mask2, gal._Mlevel2)
 
     seg = fits.getdata('output/gini/'+gal.name+'_mask.fits')
     contours3 = measure.find_contours(seg, gal.Rp_SB)
-
+    
     shape = [image.shape[0]/2., image.shape[1]/2.]
     size = 2*gal.Rp
-
+    
     fig = plt.figure(figsize=(10,6))
     gs = plt.GridSpec(3,4)
-
+    
     ax1 = fig.add_subplot(gs[:,:2])
     plt.setp(ax1, xlim=(shape[0]-size, shape[0]+size),
              ylim=(shape[1]-size, shape[1]+size))
@@ -269,42 +284,46 @@ def m20_plot(gal, image):
         ax1.plot(contour[:,1], contour[:,0], color='blue', linewidth=2)
     aperture.plot(linewidth=2, color='black')
     ax1.plot(gal.Mcx1, gal.Mcy1, 'r+', mew=2, ms=20)
-    ax1.text(.05, .05, 'M = %1.3f'%gal.M1, fontsize=20, color='k', 
-            transform=ax1.transAxes)
-    ax1.text(.05, .12, 'G = %1.5f'%gal.G1, fontsize=20, color='k', 
-            transform=ax1.transAxes)
+    ax1.text(.05, .05, 'M = %s'%"{0:.3f}".format(gal.M1), fontsize=20, 
+             color='k', transform=ax1.transAxes)
+    ax1.text(.05, .12, 'G = %s'%"{0:.3f}".format(gal.G1), fontsize=20, 
+             color='k', transform=ax1.transAxes)
     ax1.xaxis.set_major_formatter(plt.NullFormatter())
     ax1.yaxis.set_major_formatter(plt.NullFormatter())
     ax1.set_title('M20: Elliptical Aperture')
 
-
-    ax2 = fig.add_subplot(gs[:,2:4])
-    plt.setp(ax2, xlim=(shape[0]-size, shape[0]+size),
-             ylim=(shape[1]-size, shape[1]+size))
-
-    imgplot = ax2.imshow(image, cmap='gray_r', origin='center')
-    imgplot.set_clim(gal.Rp_SB, gal.Rp_SB+10*gal.Rp_SB)
-    for n, contour in enumerate(contours2):
-        ax2.plot(contour[:,1], contour[:,0], color='blue', linewidth=2)
-    for n, contour in enumerate(contours3):
-        ax2.plot(contour[:,1], contour[:,0], color='black', linewidth=2)
-    ax2.plot(gal.Mcx2, gal.Mcy2, 'r+', mew=2, ms=20)
-    ax2.text(.05, .05, 'M = %1.3f'%gal.M2, fontsize=20, color='k', 
-            transform=ax2.transAxes)
-    ax2.text(.05, .12, 'G = %1.5f'%gal.G2, fontsize=20, color='k', 
-            transform=ax2.transAxes)
-    ax2.xaxis.set_major_formatter(plt.NullFormatter())
-    ax2.yaxis.set_major_formatter(plt.NullFormatter())
-    ax2.set_title('M20: SB @ 1Rp on Gaussian-smoothed Image')
-
+    #'''
+    if not isinstance(mask2, int):
+        ax2 = fig.add_subplot(gs[:,2:4])
+        plt.setp(ax2, xlim=(shape[0]-size, shape[0]+size),
+                 ylim=(shape[1]-size, shape[1]+size))
+        imgplot = ax2.imshow(image, cmap='gray_r', origin='center')
+        imgplot.set_clim(gal.Rp_SB, gal.Rp_SB+10*gal.Rp_SB)
+        for n, contour in enumerate(contours2):
+            ax2.plot(contour[:,1], contour[:,0], color='blue', linewidth=2)
+        for n, contour in enumerate(contours3):
+            ax2.plot(contour[:,1], contour[:,0], color='black', linewidth=2)
+        ax2.plot(gal.Mcx2, gal.Mcy2, 'r+', mew=2, ms=20)
+        ax2.text(.05, .05, 'M = %s'%"{0:.3f}".format(gal.M2), fontsize=20, 
+                 color='k', transform=ax2.transAxes)
+        ax2.text(.05, .12, 'G = %s'%"{0:.3f}".format(gal.G2), fontsize=20, 
+                 color='k', transform=ax2.transAxes)
+        ax2.xaxis.set_major_formatter(plt.NullFormatter())
+        ax2.yaxis.set_major_formatter(plt.NullFormatter())
+        ax2.set_title('M20: SB @ 1Rp on Gaussian-smoothed Image')
+    #'''
     gs.tight_layout(fig)
 
+    #pdb.set_trace()
     plt.savefig('output/figures/'+gal.name+'_M20.png')
     #plt.show()
     plt.close()
 
 def plot(galaxy, hdulist):
-    clean_img = hdulist['CLN'].data
+    try:
+        clean_img = hdulist['UCLN'].data
+    except:
+        clean_img = hdulist['CLN'].data
 
     petro_radius(galaxy, clean_img)
     petro_SB(galaxy)

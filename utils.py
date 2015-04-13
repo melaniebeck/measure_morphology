@@ -70,7 +70,7 @@ def get_intersect(ydata, point, xvals, mono='inc'):
         else:
             print 'Data never cross the Horizontal Line.'
             print 'Cannot calculate the intersection.'
-            return -1
+            return np.nan
 
     if mono=='dec':
         if np.any(ydata - point < 0):
@@ -81,7 +81,7 @@ def get_intersect(ydata, point, xvals, mono='inc'):
         else:
             print 'Data never cross the Horizontal Line.'
             print 'Cannot calculate the intersection.'
-            return -1    
+            return np.nan
 
 def find_closest(point, listofpoints, k=1):
     
@@ -132,6 +132,9 @@ def get_SB_Mask(Rp, Rp_SB, image, outname):
     4. Return the mask
     '''
     conv = ndimage.gaussian_filter(image, sigma=Rp/5)
+    if not np.any(conv > Rp_SB):
+        return -1
+
     convimg = fits.ImageHDU(data=conv)
     convimg.writeto('output/gini/'+outname+'_conv.fits', clobber=True)
 
