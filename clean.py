@@ -85,15 +85,14 @@ def clean_directory(outdir):
 
 def clean_frame(image, outdir, sep=17.):
     '''
-    Gonna try a two-stage method of cleaning:
-        1. run the cutout using the Faint SE parameters
-        2. run again using the Bright SE parameters
-        3. clean the image based on the Faint parameters
-        4. check the seg maps -- if there is anything found in the Bright
-            that wasn't found with the Faint, clean those too
-        5. use (return) as the "official" parameters those that are found via
-            the Bright run 
-
+    This is a multi-stage cleaning process for each galaxy cutout.
+    Initially, SExtractor runs with both BRIGHT and FAINT parameters.
+    Based on the resulting segmentation maps, the distance of the object 
+    closest to the center in each map is determined (Fdist and Bdist). 
+    The distance between these two objects is also calculated (DIST). 
+    Based on the possible combinations of these values, various cleanings
+    are performed. 
+   
         sep is the minimum separation distance (in pixels) between: 
             1. the gal in BRIGHT and the center
             2. the gal in FAINT and the center
@@ -108,6 +107,7 @@ def clean_frame(image, outdir, sep=17.):
     num = 'NUMBER'
     area = 'ISOAREA_IMAGE'
     x, y = 'X_IMAGE', 'Y_IMAGE'
+    flux = 'FLUX_AUTO'
 
 
     basename = os.path.basename(os.path.splitext(image)[0])
@@ -121,22 +121,30 @@ def clean_frame(image, outdir, sep=17.):
     run_sextractor.run_SE(image, 'BRIGHT', outdir)
     run_sextractor.run_SE(image, 'FAINT', outdir)
 
-    # READ IN ORIG FITS-FILE AND both Bright/Faint SEG-MAPs
+    # READ IN ORIG FITS-FILE and both Bright/Faint SEGMAPs
     img, ihdr = fits.getdata(image, header=True)
     cln = img.copy()
-
     bseg, fseg = fits.getdata(segnames[0]), fits.getdata(segnames[1]) 
     bcat, fcat = fits.getdata(catnames[0]), fits.getdata(catnames[1])
 
     center = [img.shape[0]/2., img.shape[1]/2.]
-    Bdist = center[0]
 
-    # test BRIGHT segmap for any objects whatsoever
-    if np.any(np.nonzero(bseg)):
+    # Test for at least ONE object in BRIGHT catalog
+    if bcat:
         # find object in BRIGHT closest to center
-        BIndex,Bdist = find_closest(center,zip(bcat[x],bcat[y]))
+        BIndex, Bdist = find_closest(center,zip(bcat[x],bcat[y]))
         BCoord = zip(bcat[x], bcat[y])[BIndex]
+        
+        # If more than one obj, determine if bright source nearby
+        if (len(bcat) > 1) and (BIndex != 0):
+            if np.any(bcat[flux] > 1000.):
+                bflag = 1
 
+    # If nothing found in BRIGHT, assign Bdist to edge of image (251.)
+    else: 
+        Bdist = center[0]
+            
+        '''
         # if obj detected in BRIGHT -- find next closest
         idx, dst = find_closest(BCoord, zip(bcat[x], bcat[y]), k=2)
 
@@ -147,7 +155,9 @@ def clean_frame(image, outdir, sep=17.):
 
             # find the combined area of these two obj (pixels**2)
             Barea = bcat[area][BIndex] + bcat[area][B2Index]
+        #'''
 
+    # Find closest object in FAINT
     FIndex, Fdist = find_closest(center, zip(fcat[x], fcat[y]))
 
     #if fcat[area][Index] < 50:
@@ -212,11 +222,6 @@ def clean_frame(image, outdir, sep=17.):
             category, mode = 8, 'FAINT2'
             
     else:
-        # FLAG 3: SHOULD NEVER HAPPEN
-        if  (Bdist < sep) & (Fdist < sep):
-            cln = clean_image(cln, bseg, bcat, BIndex, fseg)
-            category, mode = 3, 'BRIGHT'
-
         # FLAG 4: TWO STAGE CLEANING - BRIGHT --> RUN SE AGAIN IN FAINT
         if  (Bdist < sep) & (Fdist > sep):
             '''
@@ -272,6 +277,10 @@ def clean_frame(image, outdir, sep=17.):
             cln = clean_image(cln, fseg, fcat, FIndex, fseg)
             category, mode = 6, 'FAINT'
 
+        # FLAG 8: MATHEMATICALLY IMPOSSIBLE
+        if  (Bdist < sep) & (Fdist < sep):
+            cln = clean_image(cln, bseg, bcat, BIndex, fseg)
+            category, mode = 8, 'BRIGHT'
 
     # Save all major data products
     if mode == 'BRIGHT':

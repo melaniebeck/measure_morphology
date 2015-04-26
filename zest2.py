@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.ticker import NullFormatter
 from sklearn.manifold import LocallyLinearEmbedding as LLE
+from sklearn.manifold import SpectralEmbedding, Isomap, TSNE
 from astropy.table import Table
 from time import time
 
@@ -38,13 +39,13 @@ for keys in keys1, keys2:
      
     n_neighbors = [5,7,10,12,15,20]
     n_components = 3
-    methods = ['modified']#'hessian', 'ltsa', 'standard', 
-    labels = ['Modified LLE']#'Hessian LLE', 'LTSA', 'LLE', 
+    methods = ['hessian']#'hessian', 'ltsa', 'standard', 'modified'
+    labels = ['LLE']#'Hessian LLE', 'LTSA', 'LLE', 'MLLE'
     method = 'modified'
-    label = 'MLLE'
+    label = 'modified'
     
-    fig = plt.figure(figsize=(20,8))
-    plt.suptitle("Modified LLE with %i points" % (len(X)), fontsize=14)
+    fig = plt.figure(figsize=(20,12))
+    plt.suptitle(label+" with %i points" % (len(X)), fontsize=14)
     
     #for i, method in enumerate(methods):
     for i, n_neigh in enumerate(n_neighbors):
@@ -52,20 +53,26 @@ for keys in keys1, keys2:
         A = LLE(n_neigh, n_components, eigen_solver='auto', 
                  method=method)
         error = A.fit(X).reconstruction_error_
+
+        #A = Isomap(n_neigh, n_components, eigen_solver='auto')
+        #error = A.fit(X).reconstruction_error()
+        
         Y = A.fit_transform(X)
+
         t1 = time()
-        print "%s: %.2g sec" %(method, t1-t0)
+        print "%s: %.2g sec" %(label, t1-t0)
         print "reconstruction error: ", error
 
-        ax = fig.add_subplot(231 + i, projection='3d')
-        ax.scatter(Y[:, 0], Y[:, 1], Y[:, 2], marker='^', cmap=plt.cm.Spectral)
+        ax = fig.add_subplot(231 + i)##, projection='3d'
+        ax.scatter(Y[:, 0], Y[:, 1], color=dat['color'][good], 
+                   marker='^', cmap=plt.cm.Spectral)#, Y[:, 2],
         plt.title("%i neighbors (%.2g)" % (n_neigh, t1 - t0))
         ax.set_xlim(min(Y[:,0]), max(Y[:,0]))
-        ax.set_ylim(min(Y[:,1]), max(Y[:,1]))
-        ax.set_zlim(min(Y[:,2]), max(Y[:,2]))
+        ax.set_ylim(-0.1,0.0 )
+        #ax.set_zlim(min(Y[:,2]), max(Y[:,2]))
         ax.set_xlabel('X Label')
         ax.set_ylabel('Y Label')
-        ax.set_zlabel('Z Label')
+        #ax.set_zlabel('Z Label')
         #ax.xaxis.set_major_formatter(NullFormatter())
         #ax.yaxis.set_major_formatter(NullFormatter())
         #ax.zaxis.set_major_formatter(NullFormatter())

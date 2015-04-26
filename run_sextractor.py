@@ -5,6 +5,7 @@ import subprocess
 import pyfits
 import ConfigParser
 import pdb
+import argparse
 
 def single_SE(image, outstr, outdir='', params={}, outstr2=0):
     basename = os.path.basename(os.path.splitext(image)[0])
@@ -60,3 +61,17 @@ def run_SE(image, section, outdir='', outstr2=0):
     else:
         single_SE(image, outstr, outdir, params, outstr2)
         
+def main():
+    
+    parser = argparse.ArgumentParser(description='Run SExtractor')
+    parser.add_argument('Imagename', type=str, 
+        help='Name of fits image to run SExtractor on')
+    parser.add_argument('--mode', default='BRIGHT',
+        help='Specify which config file to use: Bright, Smooth, or Faint')
+    args = parser.parse_args()
+
+    run_SE(args.Imagename, args.mode)
+
+
+if __name__ == '__main__':
+    main()
