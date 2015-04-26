@@ -86,17 +86,51 @@ def clean_directory(outdir):
 def clean_frame(image, outdir, sep=17.):
     '''
     This is a multi-stage cleaning process for each galaxy cutout.
+
+    ---------------------------------------------------------------
+    INPUTS: 
+    ---------------------------------------------------------------
+    
+    image -- Name of galaxy cutout on which to perform cleaning. 
+          Galaxy must be in the center of the image! 
+          Image does not have to be square.
+
+    outdir -- Name of the directory to which SExtractor output should
+          be directed. 
+
+    sep -- Minimum separation distance (in pixels) between:
+          1. obj in BRIGHT and center of image
+          2. obj in FAINT and center of image
+          3. obj in FAINT and obj in BRIGHT
+    ---------------------------------------------------------------
+    OUTPUTS:
+    ---------------------------------------------------------------
+    All kinds of SExtractor nonsense
+
+    ---------------------------------------------------------------
+    RETURNS:
+    ---------------------------------------------------------------
+    Multiple flags to assess the quality of the cleaning. After cleaning, 
+    SExtractor is run again in SMOOTH mode and various flags are set 
+    depending upon:
+    
+    oFlag -- Flag set if no obj is detected in the center of the image
+    
+    uFlag -- Flag set if large obj are detected far from the center
+
+    bFlag -- Set if a bright source is detected 
+
+    category -- This number designates which particular course image
+          took through the cleaning process
+    ---------------------------------------------------------------
+    PROCESS:
+    ---------------------------------------------------------------
     Initially, SExtractor runs with both BRIGHT and FAINT parameters.
     Based on the resulting segmentation maps, the distance of the object 
     closest to the center in each map is determined (Fdist and Bdist). 
     The distance between these two objects is also calculated (DIST). 
     Based on the possible combinations of these values, various cleanings
     are performed. 
-   
-        sep is the minimum separation distance (in pixels) between: 
-            1. the gal in BRIGHT and the center
-            2. the gal in FAINT and the center
-            3. the gal in FAINT and the gal in BRIGHT
     #'''
 
     # initialize some shit for laterz
@@ -138,33 +172,14 @@ def clean_frame(image, outdir, sep=17.):
         # If more than one obj, determine if bright source nearby
         if (len(bcat) > 1) and (BIndex != 0):
             if np.any(bcat[flux] > 1000.):
-                bflag = 1
+                bFlag = 1
 
     # If nothing found in BRIGHT, assign Bdist to edge of image (251.)
     else: 
         Bdist = center[0]
-            
-        '''
-        # if obj detected in BRIGHT -- find next closest
-        idx, dst = find_closest(BCoord, zip(bcat[x], bcat[y]), k=2)
-
-        if any(np.isinf(dst)):
-            B2Index, B2dist = 0., 0.
-        else:
-            B2Index, B2dist = idx[1], dst[1]
-
-            # find the combined area of these two obj (pixels**2)
-            Barea = bcat[area][BIndex] + bcat[area][B2Index]
-        #'''
 
     # Find closest object in FAINT
     FIndex, Fdist = find_closest(center, zip(fcat[x], fcat[y]))
-
-    #if fcat[area][Index] < 50:
-    #    run_sextractor.run_SE(image, 'SMOOTH', outdir)
-    #    sseg = fits.getdata(segnames[2])
-    #    scat = fits.getdata(catnames[2])
-    #    Index, Dist = find_closest(center, zip(scat[x], scat[y]))
 
     DIST = abs(Fdist - Bdist)
 
@@ -185,23 +200,17 @@ def clean_frame(image, outdir, sep=17.):
             cln = clean_image(cln, bseg, bcat, BIndex, fseg)
             category, mode = 2, 'BRIGHT'
 
-        # FLAG 7: CLEAN IN FAINT MODE
+        # FLAG 3: CLEAN IN FAINT MODE
         if (Bdist > sep) & (Fdist < sep):
             ''' There aren't many of these
             They're oddballs but most are well cleaned in FAINT
             '''
             cln = clean_image(cln, fseg, fcat, FIndex, fseg)
-            category, mode = 7, 'FAINT'
+            category, mode = 3, 'FAINT'
 
-        # FLAG 8: TWO STAGE CLEANING -- BRIGHT --> RUN SE AGAIN IN FAINT
+        # FLAG 4: TWO STAGE CLEANING -- BRIGHT --> RUN SE AGAIN IN FAINT
         if (Bdist > sep) & (Fdist > sep):
-            ''' If it's not detected in BRIGHT - should run SE in SMOOTH mode
-            no we shouldn't. :(
-            '''
-            #run_sextractor.run_SE(image, 'SMOOTH', outdir)
-            #sseg, scat = fits.getdata(segnames[2]), fits.getdata(catnames[2])
-            #SIndex, Sdist = find_closest(center, zip(scat[x], scat[y]))
-            #cln = clean_image(cln, sseg, scat, SIndex, sseg)
+
             cln = clean_image(cln, bseg, bcat, BIndex, fseg)
 
             cln_sv = cln.copy()
@@ -215,23 +224,17 @@ def clean_frame(image, outdir, sep=17.):
             f2seg = fits.getdata(outname+'_mid_cln_faint_run2_seg.fits')
             f2cat = fits.getdata(outname+'_mid_cln_faint_run2_cat.fits')
             coords = zip(f2cat[x], f2cat[y])
+
             # find closest obj to center with area above threshold
             Fdist, FIndex, FCoord, Farea, aFlag = \
                         closest_above_thresh(f2cat, area, center, coords, k=5)
             cln = clean_image(cln, f2seg, f2cat, FIndex, f2seg)
-            category, mode = 8, 'FAINT2'
+            category, mode = 4, 'FAINT2'
             
     else:
-        # FLAG 4: TWO STAGE CLEANING - BRIGHT --> RUN SE AGAIN IN FAINT
+        # FLAG 5: TWO STAGE CLEANING - BRIGHT --> RUN SE AGAIN IN FAINT
         if  (Bdist < sep) & (Fdist > sep):
-            '''
-            If DIST large but Bdist small --> Fdist must be large
-            This means that obj is likely detected in BRIGHT but is blended
-            into a nearby bright object in FAINT.
-            Try Two Stage Cleaning mode:
-              1. Clean on BRIGHT then 
-              2. Run SE again in FAINT mode and clean on that. 
-            '''
+
             cln = clean_image(cln, bseg, bcat, BIndex, fseg)
 
             #save this image so that I can run SE on it
@@ -246,13 +249,14 @@ def clean_frame(image, outdir, sep=17.):
             f2seg = fits.getdata(outname+'_mid_cln_faint_run2_seg.fits')
             f2cat = fits.getdata(outname+'_mid_cln_faint_run2_cat.fits')
             coords = zip(f2cat[x], f2cat[y])
+
             # find closest obj to center with area above threshold
             Fdist, FIndex, FCoord, Farea, aFlag = \
                         closest_above_thresh(f2cat, area, center, coords, k=5)
             cln = clean_image(cln, f2seg, f2cat, FIndex, f2seg)
-            category, mode = 4, 'FAINT2'
+            category, mode = 5, 'FAINT2'
  
-        # FLAG 5: CLEAN IN SMOOTH MODE
+        # FLAG 6: CLEAN IN SMOOTH MODE
         if  (Bdist > sep) & (Fdist < sep):
             ''' These are mostly faint objects not detected in BRIGHT
             run SE in SMOOTH mode and then clean
@@ -262,20 +266,16 @@ def clean_frame(image, outdir, sep=17.):
             SIndex, Sdist = find_closest(center, zip(scat[x], scat[y]))
 
             cln = clean_image(cln, sseg, scat, SIndex, sseg)
-            category, mode = 5, 'SMOOTH'
+            category, mode = 6, 'SMOOTH'
 
-        # FLAG 6: CLEAN IN FAINT MODE -- ALL GARBAGE ANYWAY
+        # FLAG 7: CLEAN IN FAINT MODE -- ALL GARBAGE ANYWAY
         if  (Bdist > sep) & (Fdist > sep):
             ''' this is mostly a garbage bin of crap 
             any object in here needs to be flagged and is likely not a true
             galaxy at all!
             '''
-            #run_sextractor.run_SE(image, 'SMOOTH', outdir)
-            #sseg, scat = fits.getdata(segnames[2]), fits.getdata(catnames[2])
-            #SIndex, Sdist = find_closest(center, zip(scat[x], scat[y]))
-
             cln = clean_image(cln, fseg, fcat, FIndex, fseg)
-            category, mode = 6, 'FAINT'
+            category, mode = 7, 'FAINT'
 
         # FLAG 8: MATHEMATICALLY IMPOSSIBLE
         if  (Bdist < sep) & (Fdist < sep):
@@ -296,7 +296,6 @@ def clean_frame(image, outdir, sep=17.):
                             data=[bseg, fseg, f2seg, f2cat], 
                             names=['BSEG', 'FSEG', 'F2SEG', 'CAT'])
         datacube.insert(0, cln_sv)
-
 
     elif mode == 'SMOOTH':
         datacube = savedata(mode, ihdr, SIndex, data=[bseg, fseg, sseg, scat], 
@@ -361,4 +360,4 @@ def clean_frame(image, outdir, sep=17.):
     clean_directory(outdir)
 
     #FIndex, Fdist, Bdist, DIST, Farea, Barea,
-    return  [category, oFlag, uFlag]
+    return  [category, oFlag, uFlag, bFlag]
