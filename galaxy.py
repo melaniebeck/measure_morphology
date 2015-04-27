@@ -61,20 +61,20 @@ class Galaxy(object):
         self.Rp, self.Rp_SB, self.Rpflag = self.get_petro(image)
         self.elipt = cat['ELLIPTICITY']            
         if not np.isnan(self.Rp):
-            #self.A, self.Acx, self.Acy = self.get_asymmetry(image)
+            self.A, self.Acx, self.Acy = self.get_asymmetry(image)
             #self.r20, self.r80, self.C = self.get_concentration(image)
-            self.G1 = self.get_gini1(image)
-            #self.M1, self.Mcx1, self.Mcy1 = self.get_m20_1(image)
+            #self.G1 = self.get_gini1(image)
+            self.M1, self.Mcx1, self.Mcy1 = self.get_m20_1(image)
             #self.mask = utils.get_SB_mask(self.Rp, self.Rp_SB, image, self.name)
             #if not isinstance(self.mask, int):
-            self.G2 = self.get_gini2(image)
+            #self.G2 = self.get_gini2(image)
             #self.M2, self.Mcx2, self.Mcy2 = self.get_m20_2(image)
-                
+
         else:
-            #self.A, self.Acx, self.Acy = np.nan, self.x, self.y
+            self.A, self.Acx, self.Acy = np.nan, self.x, self.y
             #self.r20, self.r80, self.C = np.nan, np.nan, np.nan
-            self.G1, self.G2 = np.nan, np.nan 
-            #self.M1, self.Mcx1, self.Mcy1 = np.nan, self.x, self.y
+            #self.G1, self.G2 = np.nan, np.nan 
+            self.M1, self.Mcx1, self.Mcy1 = np.nan, self.x, self.y
             #self.M2, self.Mcx2, self.Mcy2 = np.nan, self.x, self.y
 
         #dir(self) in cmd line to see all the hidden shits
@@ -88,7 +88,10 @@ class Galaxy(object):
         #rms = np.sqrt(np.mean(np.square(data[segmap==0])))
         return median, std
 
-    
+    def get_stn_pp(self, galpixels):
+        n = len(galpixels[galpixels != 0.0])
+        return np.sum(galpixels/np.sqrt(self.rms**2+galpixels))/n
+        
   
     def get_petro(self, image):
         r_flag = 0
@@ -229,7 +232,7 @@ class Galaxy(object):
 
         galcenter = np.array([self.x, self.y])
         imgcenter = np.array([image.shape[0]/2., image.shape[1]/2.])
-        delta = imgcenter - galcenter
+        delta = galcenter - imgcenter
         aper = EllipticalAperture(imgcenter, self.Rp, self.Rp/self.e,self.theta)
         bkg_asym = self.bkg_asymmetry(aper)
 
@@ -241,7 +244,7 @@ class Galaxy(object):
             ga = []
             dd = []
             deltas, points = utils.generate_deltas(imgcenter, .3, delta)
-
+            #pdb.set_trace()
             for d, p in zip(deltas, points): 
                 # if the point already exists in the dictionary, 
                 #don't run asym codes!
@@ -255,15 +258,12 @@ class Galaxy(object):
                     den = float(denominator['aperture_sum'])
                     galasym = num/den
 
-                    # create an array of asyms ... 
+                    # create an array of asyms. 
                     ga.append(galasym)
                     dd.append(den)
                     # ... and a dictionary that maps each asym to a 
                     #point on the image grid
                     asyms[p].append([galasym,den])
-
-                    #galaxy_plot.asym_plot(newdata, residual, aperture, 
-                    #                      galcenter, self.Rp)
 
                 # just take the value that's already in the dictionary 
                 # for that point
@@ -274,19 +274,66 @@ class Galaxy(object):
             # if the asymmetry found at the original center 
             # (first delta in deltas) is the minimum, we're done!
             if ga[0] == np.min(ga):
-                center = imgcenter - deltas[0]
-                # save the residual image 
-                res = fits.ImageHDU(data=residual)
+                asym_center = imgcenter + deltas[0]
+                
+                # save the corresponding residual image
+                new = sp_interp.shift(image, deltas[0])
+                rot = sp_interp.rotate(new, 180.)
+                resid = new - rot
+                res = fits.ImageHDU(data=resid)
                 res.writeto('output/asymimgs/'+self.name+'_res.fits', 
                             clobber=True, output_verify='silentfix')
-                #galaxy_plot.asym_plot(newdata, residual, aperture, 
-                #                      center, self.Rp, self.med, self.rms)
-                return ga[0]-bkg_asym/dd[0], center[0], center[1]
+
+                # return A and A center (row, col)
+                return ga[0]-bkg_asym/dd[0], asym_center[0], asym_center[1]
             else:
                 minloc = np.where(ga == np.min(ga))[0]
                 delta = deltas[minloc[0]]
                 prior_points = list(points)
 
+    def get_asymmetry2(self, image):
+        
+        center = [image.shape[0]/2., image.shape[1]/2.]
+        galcenter = np.array([self.x, self.y])
+
+        
+        mxrange = [galcenter[0]-0.5*round(self.Rp), 
+                   galcenter[0]+0.5*round(self.Rp)]
+        myrange = [galcenter[1]-0.5*round(self.Rp), 
+                   galcenter[1]+0.5*round(self.Rp)]
+
+        aper = EllipticalAperture(center, self.Rp, self.Rp/self.e,self.theta)
+        bkg_asym = self.bkg_asymmetry(aper)
+
+        # Create a grid over which to calculate A at each point
+        # This grid is finer than the original image
+        xx, yy = np.ogrid[mxrange[0]:mxrange[1]:1, myrange[0]:myrange[1]:1]
+
+        #pdb.set_trace()
+        asyms = []
+        for x in xx:
+            print x
+            for y in yy.transpose():
+                dist = [center[0]-x[0], center[1]-y[0]]
+                newdata = sp_interp.shift(image, dist)
+                rotdata = sp_interp.rotate(newdata, 180.)
+                residual = newdata-rotdata
+                numerator = aperture_photometry(np.abs(residual), aper)
+                denominator = aperture_photometry(np.abs(newdata), aper)
+                num = float(numerator['aperture_sum']) 
+                den = float(denominator['aperture_sum'])
+                galasym = num/den
+                asyms.append(galasym)
+
+        
+        A = np.min(asyms)-bkg_asym/den
+        aa = np.reshape(asyms, (len(xx), len(yy.transpose())))
+        #pdb.set_trace()
+        loc = np.where(aa == np.min(aa))
+        Ax, Ay = xx[loc[0][0]], yy.transpose()[loc[1][0]]
+        print A, (Ax, Ay)
+        pdb.set_trace()
+        return A
 
     def get_concentration(self, image):
         '''
@@ -380,13 +427,48 @@ class Galaxy(object):
         gini = factor*np.dot(gsum, galpix_sorted)
 
         return gini
+        
+    def get_m20_nomin(self, image):
+        galcenter = np.array([self.Acx, self.Acy])
 
+        # create aperture at center of galaxy (mask)
+        gal_aper = utils.EllipticalAperture(galcenter, self.Rp, self.Rp/self.e,
+                                            self.theta, image)
+        galpix = gal_aper.aper*image
+
+
+        # Create a "distance grid" - each element's value is it's distance
+        # from the center of the image for the entire image
+        x2, y2 = np.ogrid[:image.shape[0], :image.shape[1]]      
+        dist_grid = (galcenter[0] - x2)**2 + (galcenter[1] - y2)**2
+
+        mtot = np.sum(galpix*dist_grid)
+
+        grid_sorted = np.array([i for j,i in sorted(zip(galpix.flatten(),\
+                                                        dist_grid.flatten()),\
+                                                    reverse=True)])
+        galpix_sorted = np.array(sorted(galpix.flatten(), reverse=True))
+        ftot20 = 0.2*np.sum(galpix_sorted)
+        fcumsum = np.cumsum(galpix_sorted)
+        m20_pix = np.where(fcumsum < ftot20)[0]
+        if len(m20_pix) != 0:
+            m20_galpix = galpix_sorted[m20_pix]
+            m20_distpix = grid_sorted[m20_pix]
+            M20 = np.log10(np.sum(m20_galpix*m20_distpix)/mtot) 
+            self._Mlevel1 = np.min(m20_galpix)
+            pdb.set_trace()
+            return M20, xc[0], yc[0]
+        else:
+            self._Mlevel1 = np.nan
+            return np.nan, self.x, self.y
+        
     def get_m20_1(self, image):
 
-        print "Calculating M20(1)..."
+        print "Calculating M20(1)...(Elipt mask)"
         
         center = [image.shape[0]/2., image.shape[1]/2.]
-        galcenter = np.array([self.x, self.y])
+        #galcenter = np.array([self.x, self.y])
+        galcenter = np.array([self.Acx, self.Acy])
 
         mxrange = [center[0]-round(self.a), center[0]+round(self.a)]
         myrange = [center[1]-round(self.a), center[1]+round(self.a)]
@@ -402,6 +484,7 @@ class Galaxy(object):
         gal_aper = utils.EllipticalAperture(center, self.Rp, self.Rp/self.e,
                                             self.theta, image)
         mask1 = gal_aper.aper*image
+        self.stn = self.get_stn_pp(mask1)
 
         mtots = []
         for i in x:
@@ -447,7 +530,7 @@ class Galaxy(object):
 
     def get_m20_2(self, image):
 
-        print "Calculating M20(2)..."
+        print "Calculating M20(2)...(SB mask)"
         
         center = [image.shape[0]/2., image.shape[1]/2.]
         galcenter = np.array([self.x, self.y])
@@ -464,6 +547,8 @@ class Galaxy(object):
         if isinstance(mask2, int):
             self._Mlevel2 = np.nan
             return np.nan, xc[0], yc[0]
+        
+        self.stn = self.get_stn_pp(mask2)
         
         mtots = []
         for i in x:
@@ -513,10 +598,12 @@ class Galaxy(object):
             del the_dict[key]
 
         if init:
-            names = ['name', 'cat', 'oflag', 'uflag', 'ra', 'dec', 'e', 'x', 
-                     'y', 'a', 'b', 'theta', 'elipt', 'kron', 'Rp', 'Rpflag',
-                     'Rp_SB', 'r20', 'r80', 'C', 'A', 'G1', 'G2', 'M1', 'M2', 
-                     'Acx', 'Acy', 'Mcx1', 'Mcy1', 'Mcx2', 'Mcy2', 'med', 'rms']
+            names = ['name', 'cat', 'oflag', 'uflag', 'bflag', 'ra', 'dec',
+                     'e', 'x', 'y', 'a', 'b', 'theta', 'elipt', 'kron', 
+                     'Rp', 'Rpflag', 'Rp_SB', 'r20', 'r80',  'A', 'G1', 
+                     'G2', 'M1', 'M2', 
+                     'Acx', 'Acy', 'Mcx1', 'Mcy1', 'Mcx2', 'Mcy2', 'stn',
+                     'med', 'rms']
             dtypes = []
             for n in names:
                 if n in ['name']:
@@ -546,8 +633,8 @@ def main():
         help='Specify the desired name for output catalog.')
     args = parser.parse_args()
 
-    fitsfiles = np.array(sorted(glob.glob(args.directory+'*.fits')))
-    #fitsfiles = sorted(glob.glob(args.directory))
+    #fitsfiles = np.array(sorted(glob.glob(args.directory+'*.fits')))
+    fitsfiles = sorted(glob.glob(args.directory))
 
     #fitsfiles=np.full(10,fill_value=fitsfiles[0], dtype='|S80')
     #fitsfiles = fitsfiles[376]
@@ -556,7 +643,7 @@ def main():
 
     outdir = 'output/datacube/'
 
-    t = Table(names=('Rp', 'G1', 'G2'))
+    t = Table(names=('Rp', 'A', 'M20', 'stn'))
 
     for idx, f in enumerate(fitsfiles): 
         basename = os.path.basename(f)
@@ -580,7 +667,7 @@ def main():
         else:
             t.add_row(g.table())
         '''
-        t.add_row((g.Rp, g.G1, g.G2))
+        t.add_row((g.Rp, g.A, g.M1, g.stn))
         hdulist.close()
         #t.write(args.output, format='ascii.fixed_width')
         del g

@@ -163,8 +163,9 @@ def clean_frame(image, outdir, sep=17.):
 
     center = [img.shape[0]/2., img.shape[1]/2.]
 
+    bFlag = 0
     # Test for at least ONE object in BRIGHT catalog
-    if bcat:
+    if len(bcat) > 0:
         # find object in BRIGHT closest to center
         BIndex, Bdist = find_closest(center,zip(bcat[x],bcat[y]))
         BCoord = zip(bcat[x], bcat[y])[BIndex]
