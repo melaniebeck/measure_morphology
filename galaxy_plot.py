@@ -188,7 +188,7 @@ def asym_plot(gal, image):
     shape = [image.shape[0]/2., image.shape[1]/2.]
     size = 2*gal.Rp
 
-    aper = EllipticalAperture((gal.Acx, gal.Acy), gal.Rp, gal.Rp/gal.e, 
+    aper = EllipticalAperture((gal.Ax, gal.Ay), gal.Rp, gal.Rp/gal.e, 
                               gal.theta)
 
     # read in residual figure created during asymmetry calculation
@@ -213,7 +213,7 @@ def asym_plot(gal, image):
 
     imgplot = ax.imshow(residual, cmap='gray_r', origin='center')
     imgplot.set_clim(bins[0], bins[-1])
-    ax.plot(gal.Acx, gal.Acy, 'b+', mew=2, ms=20)
+    ax.plot(gal.Ax, gal.Ay, 'b+', mew=2, ms=20)
     aper.plot(lw=2)
     ax.xaxis.set_major_formatter(plt.NullFormatter())
     ax.yaxis.set_major_formatter(plt.NullFormatter())
@@ -236,9 +236,9 @@ def conc_plot(gal, image):
 
     imgplot = ax.imshow(image, cmap='gray_r')
     imgplot.set_clim(gal.med-.5*gal.rms, gal.med+10*gal.rms)
-    patches = [mpatches.Circle((gal.Acx, gal.Acy), gal.r20, fill=None,
+    patches = [mpatches.Circle((gal.Ax, gal.Ay), gal.r20, fill=None,
                                color='black', lw=2), 
-               mpatches.Circle((gal.Acx, gal.Acy), gal.r80, fill=None,
+               mpatches.Circle((gal.Ax, gal.Ay), gal.r80, fill=None,
                                color='black', lw=2)]
     for patch in patches:
         ax.add_patch(patch)
@@ -256,25 +256,23 @@ def m20_plot(gal, image):
     1. Galaxy pixels defined by 1 petrosian radius mask
     2. Galaxy pixels defined by SB cut
     '''
-    aperture = utils.EllipticalAperture((gal.Mcx1, gal.Mcy1), 
+    aperture = utils.EllipticalAperture((gal.Mx, gal.My), 
                                          gal.Rp, gal.Rp/gal.e, 
                                          gal.theta, image)
     mask1 = aperture.aper*image
-    mask2 = utils.get_SB_Mask(gal.Rp, gal.Rp_SB, image, gal.name)*image
 
     contours1 = measure.find_contours(mask1, gal._Mlevel1)
-    contours2 = measure.find_contours(mask2, gal._Mlevel2)
 
-    seg = fits.getdata('output/gini/'+gal.name+'_mask.fits')
-    contours3 = measure.find_contours(seg, gal.Rp_SB)
+    #seg = fits.getdata('output/gini/'+gal.name+'_mask.fits')
+    #contours3 = measure.find_contours(seg, gal.Rp_SB)
     
     shape = [image.shape[0]/2., image.shape[1]/2.]
     size = 2*gal.Rp
     
     fig = plt.figure(figsize=(10,6))
-    gs = plt.GridSpec(3,4)
+    gs = plt.GridSpec(3,3)
     
-    ax1 = fig.add_subplot(gs[:,:2])
+    ax1 = fig.add_subplot(gs[:,:])
     plt.setp(ax1, xlim=(shape[0]-size, shape[0]+size),
              ylim=(shape[1]-size, shape[1]+size))
 
@@ -283,16 +281,16 @@ def m20_plot(gal, image):
     for n, contour in enumerate(contours1):
         ax1.plot(contour[:,1], contour[:,0], color='blue', linewidth=2)
     aperture.plot(linewidth=2, color='black')
-    ax1.plot(gal.Mcx1, gal.Mcy1, 'r+', mew=2, ms=20)
-    ax1.text(.05, .05, 'M = %s'%"{0:.3f}".format(gal.M1), fontsize=20, 
+    ax1.plot(gal.Mx, gal.My, 'r+', mew=2, ms=20)
+    ax1.text(.05, .05, 'M = %s'%"{0:.3f}".format(gal.M20), fontsize=20, 
              color='k', transform=ax1.transAxes)
-    ax1.text(.05, .12, 'G = %s'%"{0:.3f}".format(gal.G1), fontsize=20, 
+    ax1.text(.05, .12, 'G = %s'%"{0:.3f}".format(gal.G), fontsize=20, 
              color='k', transform=ax1.transAxes)
     ax1.xaxis.set_major_formatter(plt.NullFormatter())
     ax1.yaxis.set_major_formatter(plt.NullFormatter())
     ax1.set_title('M20: Elliptical Aperture')
 
-    #'''
+    '''
     if not isinstance(mask2, int):
         ax2 = fig.add_subplot(gs[:,2:4])
         plt.setp(ax2, xlim=(shape[0]-size, shape[0]+size),
@@ -325,6 +323,7 @@ def plot(galaxy, hdulist):
     except:
         clean_img = hdulist['CLN'].data
 
+    utils.checkdir('output/figures/')
     petro_radius(galaxy, clean_img)
     petro_SB(galaxy)
     asym_plot(galaxy, clean_img)

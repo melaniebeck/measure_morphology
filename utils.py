@@ -45,6 +45,11 @@ def resource_getrlimits():
         soft, hard = resource.getrlimit(limit_num)
         print 'Maximum %-25s (%-15s) : %20s %20s' % (desc, name, soft, hard)
 
+def checkdir(f):
+    d = os.path.dirname(f)
+    if not os.path.exists(d):
+        os.makedirs(d)        
+
 def get_interp(x, y, num=1000, kind='cubic'):
     newx = np.linspace(np.min(x), np.max(x), num=num)
     newy = interp1d(x, y, kind=kind)
@@ -136,7 +141,8 @@ def get_SB_Mask(Rp, Rp_SB, image, outname):
         return -1
 
     convimg = fits.ImageHDU(data=conv)
-    convimg.writeto('output/gini/'+outname+'_conv.fits', clobber=True)
+    checkdir('output/masks/')
+    convimg.writeto('output/masks/'+outname+'_conv.fits', clobber=True)
 
     mask = np.array([True if conv[x] >= Rp_SB else False \
                      for x in np.ndindex(conv.shape)])
@@ -152,11 +158,11 @@ def get_SB_Mask(Rp, Rp_SB, image, outname):
         mask2 = mask2.reshape(conv.shape).astype('float')
 
         mm = fits.ImageHDU(data=mask2)
-        mm.writeto('output/gini/'+outname+'_mask.fits', clobber=True)
+        mm.writeto('output/masks/'+outname+'_mask.fits', clobber=True)
         return mask2
     else: 
         mm = fits.ImageHDU(data=mask)
-        mm.writeto('output/gini/'+outname+'_mask.fits', clobber=True)
+        mm.writeto('output/masks/'+outname+'_mask.fits', clobber=True)
         return mask
 
 
@@ -256,6 +262,7 @@ class EllipticalAperture(object):
         return 0
         
 def generate_deltas(center, shiftsize, shift):
+
     increments = (0.,-shiftsize,shiftsize)
     points = []
     deltas = []

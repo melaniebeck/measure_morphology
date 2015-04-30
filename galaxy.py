@@ -4,6 +4,7 @@ import glob
 import argparse
 import os
 import string
+import math
 import pdb
 import pyfits as fits
 import bisect
@@ -42,8 +43,7 @@ class Galaxy(object):
 
         # flags and naming attributes
         self.cat = flags[0]
-        self.oflag = flags[1]
-        self.uflag = flags[2]
+        self.oflag, self.uflag, self.bflag = flags[1], flags[2], flags[3]
         self.name = os.path.basename(os.path.splitext(filename)[0])
   
         # SExtractor attributes        
@@ -61,20 +61,21 @@ class Galaxy(object):
         self.Rp, self.Rp_SB, self.Rpflag = self.get_petro(image)
         self.elipt = cat['ELLIPTICITY']            
         if not np.isnan(self.Rp):
-            self.A, self.Acx, self.Acy = self.get_asymmetry(image)
-            #self.r20, self.r80, self.C = self.get_concentration(image)
-            #self.G1 = self.get_gini1(image)
-            self.M1, self.Mcx1, self.Mcy1 = self.get_m20_1(image)
+            self.A, self.Ax, self.Ay = self.get_asymmetry(image)
+            self.r20, self.r80, self.C = self.get_concentration(image)
+            self.G = self.get_gini1(image)
+            self.M20, self.Mx, self.My = self.get_m20_1(image)
+            #self.M1 = self.get_m20_nomin(image)
             #self.mask = utils.get_SB_mask(self.Rp, self.Rp_SB, image, self.name)
             #if not isinstance(self.mask, int):
             #self.G2 = self.get_gini2(image)
             #self.M2, self.Mcx2, self.Mcy2 = self.get_m20_2(image)
 
         else:
-            self.A, self.Acx, self.Acy = np.nan, self.x, self.y
-            #self.r20, self.r80, self.C = np.nan, np.nan, np.nan
-            #self.G1, self.G2 = np.nan, np.nan 
-            self.M1, self.Mcx1, self.Mcy1 = np.nan, self.x, self.y
+            self.A, self.Ax, self.Ay = np.nan, self.x, self.y
+            self.r20, self.r80, self.C = np.nan, np.nan, np.nan
+            self.G = np.nan 
+            self.M20, self.Mx, self.My = np.nan, self.x, self.y
             #self.M2, self.Mcx2, self.Mcy2 = np.nan, self.x, self.y
 
         #dir(self) in cmd line to see all the hidden shits
@@ -88,9 +89,11 @@ class Galaxy(object):
         #rms = np.sqrt(np.mean(np.square(data[segmap==0])))
         return median, std
 
-    def get_stn_pp(self, galpixels):
-        n = len(galpixels[galpixels != 0.0])
-        return np.sum(galpixels/np.sqrt(self.rms**2+galpixels))/n
+    def get_stn(self, mask):
+        pix = np.where(mask.flatten() != 0.0)
+        galpixels = mask.flatten()[pix]
+        n = len(galpixels)
+        return np.sum(galpixels/np.sqrt(self.rms**2+abs(galpixels)))
         
   
     def get_petro(self, image):
@@ -199,8 +202,9 @@ class Galaxy(object):
         
         # save the background image 
         bkg = fits.ImageHDU(data=bkg_img)
+        utils.checkdir('output/asymings/')
         bkg.writeto('output/asymimgs/'+self.name+'.fits', clobber=True, 
-                    output_verify='silentfix')
+                        output_verify='silentfix')          
 
         # minimize the background asymmetry
         ba = []
@@ -281,6 +285,7 @@ class Galaxy(object):
                 rot = sp_interp.rotate(new, 180.)
                 resid = new - rot
                 res = fits.ImageHDU(data=resid)
+                utils.checkdir('output/asymings/')
                 res.writeto('output/asymimgs/'+self.name+'_res.fits', 
                             clobber=True, output_verify='silentfix')
 
@@ -324,7 +329,6 @@ class Galaxy(object):
                 den = float(denominator['aperture_sum'])
                 galasym = num/den
                 asyms.append(galasym)
-
         
         A = np.min(asyms)-bkg_asym/den
         aa = np.reshape(asyms, (len(xx), len(yy.transpose())))
@@ -332,7 +336,6 @@ class Galaxy(object):
         loc = np.where(aa == np.min(aa))
         Ax, Ay = xx[loc[0][0]], yy.transpose()[loc[1][0]]
         print A, (Ax, Ay)
-        pdb.set_trace()
         return A
 
     def get_concentration(self, image):
@@ -352,7 +355,7 @@ class Galaxy(object):
         radii = 10*np.logspace(-1.0, np.log10(image.shape[0]/2./10.), num=20)
 
         # Build circular annuli centered on the ASYMMETRY CENTER of the galaxy
-        annuli = [CircularAnnulus((self.Acx, self.Acy),radii[i-1],radii[i])\
+        annuli = [CircularAnnulus((self.Ax, self.Ay),radii[i-1],radii[i])\
                   for i in range(1,len(radii))]
         counts = np.hstack([aperture_photometry(image, an, method='center') \
                             for an in annuli])['aperture_sum']
@@ -360,7 +363,7 @@ class Galaxy(object):
                             for idx in range(1,len(counts)+1)])
 
         # Calculate the total flux in a Circular aperture of 1.5*rpet
-        tot_aper = CircularAperture((self.Acx, self.Acy), self.Rp)
+        tot_aper = CircularAperture((self.Ax, self.Ay), self.Rp)
         tot_flux = float(aperture_photometry(image, tot_aper, 
                                              method='center')['aperture_sum'])
 
@@ -381,7 +384,7 @@ class Galaxy(object):
         return r20, r80, 5*np.log10(r80/r20)
         
     def get_gini1(self, image):
-        print "calculating Gini(1)..."
+        print "calculating Gini..."
 
         # Mask 1: galaxy pixels defined exactly within 1 petrosian radius
         ap = utils.EllipticalAperture((self.x, self.y), self.Rp, self.Rp/self.e,
@@ -394,20 +397,6 @@ class Galaxy(object):
         factor = 1/(xbar*n*(n-1))
         gsum = [2*i-n-1 for i, p in enumerate(galpix_sorted)]
         gini = factor*np.dot(gsum, galpix_sorted)
-        '''
-        for pix in galpix:
-            galpix_sorted= sorted(pix)
-            xbar = np.mean(galpix_sorted)
-            n = len(galpix_sorted)
-
-            factor = 1/(xbar*n*(n-1))
-            #print xbar, factor, n
-            gsum = [2*i-n-1 for i, p in enumerate(galpix_sorted)]
-            ginis.append(factor*np.dot(gsum, galpix_sorted))
-        #'''
-        #print "<S/N>:", stn
-        #print ginis
-
         return gini 
 
     def get_gini2(self, image):
@@ -429,7 +418,7 @@ class Galaxy(object):
         return gini
         
     def get_m20_nomin(self, image):
-        galcenter = np.array([self.Acx, self.Acy])
+        galcenter = np.array([self.Ax, self.Ay])
 
         # create aperture at center of galaxy (mask)
         gal_aper = utils.EllipticalAperture(galcenter, self.Rp, self.Rp/self.e,
@@ -456,22 +445,24 @@ class Galaxy(object):
             m20_distpix = grid_sorted[m20_pix]
             M20 = np.log10(np.sum(m20_galpix*m20_distpix)/mtot) 
             self._Mlevel1 = np.min(m20_galpix)
-            pdb.set_trace()
-            return M20, xc[0], yc[0]
+            #pdb.set_trace()
+            return M20
         else:
             self._Mlevel1 = np.nan
-            return np.nan, self.x, self.y
+            return np.nan
         
     def get_m20_1(self, image):
 
-        print "Calculating M20(1)...(Elipt mask)"
+        print "Calculating M20..."
         
         center = [image.shape[0]/2., image.shape[1]/2.]
-        #galcenter = np.array([self.x, self.y])
-        galcenter = np.array([self.Acx, self.Acy])
+        galcenter = np.array([self.x, self.y])
+        #galcenter = np.array([self.Ax, self.Ay])
 
-        mxrange = [center[0]-round(self.a), center[0]+round(self.a)]
-        myrange = [center[1]-round(self.a), center[1]+round(self.a)]
+        mxrange = [round(center[0]-0.5*self.Rp), 
+                   round(center[0]+0.5*self.Rp)]
+        myrange = [round(center[1]-0.5*self.Rp), 
+                   round(center[1]+0.5*self.Rp)]
 
         x, y = np.ogrid[mxrange[0]:mxrange[1], myrange[0]:myrange[1]]
 
@@ -484,15 +475,16 @@ class Galaxy(object):
         gal_aper = utils.EllipticalAperture(center, self.Rp, self.Rp/self.e,
                                             self.theta, image)
         mask1 = gal_aper.aper*image
-        self.stn = self.get_stn_pp(mask1)
+        self.stn = self.get_stn(mask1)
+        #print self.stn
 
         mtots = []
         for i in x:
             for j in y.transpose():
-                indices0 = range(center[0]-i, center[0]-i + 
-                                 dist_grid.shape[0])
-                indices1 = range(center[1]-j, center[1]-j + 
-                                 dist_grid.shape[1])
+                ind1 = int(math.floor(center[0]-i))
+                ind2 = int(math.floor(center[1]-j))
+                indices0 = range(ind1, ind1 + dist_grid.shape[0])
+                indices1 = range(ind2, ind2 + dist_grid.shape[1])
                 shift_grid = dist_grid.take(indices0, axis=0, mode='wrap')\
                                       .take(indices1, axis=1, mode='wrap')
                 mtots.append(np.sum(mask1*shift_grid))
@@ -548,7 +540,7 @@ class Galaxy(object):
             self._Mlevel2 = np.nan
             return np.nan, xc[0], yc[0]
         
-        self.stn = self.get_stn_pp(mask2)
+        self.stn = self.get_stn(mask2)
         
         mtots = []
         for i in x:
@@ -598,17 +590,17 @@ class Galaxy(object):
             del the_dict[key]
 
         if init:
-            names = ['name', 'cat', 'oflag', 'uflag', 'bflag', 'ra', 'dec',
+            #pdb.set_trace()
+            names = ['name', 'ra', 'dec',
                      'e', 'x', 'y', 'a', 'b', 'theta', 'elipt', 'kron', 
-                     'Rp', 'Rpflag', 'Rp_SB', 'r20', 'r80',  'A', 'G1', 
-                     'G2', 'M1', 'M2', 
-                     'Acx', 'Acy', 'Mcx1', 'Mcy1', 'Mcx2', 'Mcy2', 'stn',
-                     'med', 'rms']
+                     'Rp', 'Rpflag', 'Rp_SB', 'r20', 'r80',  'A', 'G', 'C',
+                     'M20', 'Ax', 'Ay', 'Mx', 'My', 'stn',
+                     'med', 'rms', 'cat', 'oflag', 'uflag', 'bflag']
             dtypes = []
             for n in names:
                 if n in ['name']:
                     dtypes.append('S80')
-                elif n in ['cat', 'oflag', 'uflag', 'Rpflag']:
+                elif n in ['cat', 'oflag', 'uflag', 'Rpflag','bflag']:
                     dtypes.append('i')
                 else: 
                     dtypes.append('f')
@@ -629,36 +621,36 @@ def main():
     parser = argparse.ArgumentParser(description='Perform LLE/PCA/whatevs')
     parser.add_argument('directory', type=str, 
         help='Directory of fits images on which to run LLE.')
-    parser.add_argument('output', type=str,
+    parser.add_argument('catalog_name', type=str,
         help='Specify the desired name for output catalog.')
+    parser.add_argument('outdir_name', type=str,
+        help='Specify the desired name for output directory.')
     args = parser.parse_args()
 
-    #fitsfiles = np.array(sorted(glob.glob(args.directory+'*.fits')))
-    fitsfiles = sorted(glob.glob(args.directory))
+    fitsfiles = np.array(sorted(glob.glob(args.directory+'*.fits')))
+    #fitsfiles = sorted(glob.glob(args.directory))
 
-    #fitsfiles=np.full(10,fill_value=fitsfiles[0], dtype='|S80')
-    #fitsfiles = fitsfiles[376]
     warnings.filterwarnings('ignore', message='Overwriting existing file .*',
                             module='pyfits')
 
-    outdir = 'output/datacube/'
+    utils.checkdir(args.outdir_name)
 
-    t = Table(names=('Rp', 'A', 'M20', 'stn'))
+    #t = Table(names=('cat', 'oflag', 'uflag', 'bflag', 'bdist'))
 
     for idx, f in enumerate(fitsfiles): 
         basename = os.path.basename(f)
-        filename = outdir+'f_'+basename
+        filename = args.outdir_name+'f_'+basename
 
         if not os.path.isfile(filename):
             print "File not found! Running SExtractor before proceeding."
 
         print "Cleaning ", os.path.basename(f)
-        flags = clean.clean_frame(f, outdir)
+        flags = clean.clean_frame(f, args.outdir_name)
 
         print "Running", os.path.basename(f)
         hdulist = fits.open(filename, memmap=True)
         g = Galaxy(hdulist, filename, flags)
-        '''
+        #'''
         if not np.isnan(g.Rp):
             galaxy_plot.plot(g, hdulist)
         if idx == 0:
@@ -666,14 +658,14 @@ def main():
             t.add_row(gal_dict)
         else:
             t.add_row(g.table())
-        '''
-        t.add_row((g.Rp, g.A, g.M1, g.stn))
+        #'''
+        #t.add_row((flags[0], flags[1], flags[2], flags[3], flags[4]))
         hdulist.close()
-        #t.write(args.output, format='ascii.fixed_width')
+        t.write(args.catalog_name, overwrite=True)
         del g
 
-    t.write(args.output, format='ascii.fixed_width')
-    #print "Parameter catalog complete.\nSaving catalog to file..."
+    #t.write('bigsample_mycat_flags.dat', format='ascii.fixed_width')
+    print "Parameter catalog complete.\nSaving catalog to file..."
     #t.write(args.output, format='ascii')
     exit()  
 

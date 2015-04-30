@@ -163,17 +163,20 @@ def clean_frame(image, outdir, sep=17.):
 
     center = [img.shape[0]/2., img.shape[1]/2.]
 
-    bFlag = 0
+    brightdist, bFlag = 0., 0
     # Test for at least ONE object in BRIGHT catalog
     if len(bcat) > 0:
         # find object in BRIGHT closest to center
         BIndex, Bdist = find_closest(center,zip(bcat[x],bcat[y]))
         BCoord = zip(bcat[x], bcat[y])[BIndex]
-        
+
         # If more than one obj, determine if bright source nearby
         if (len(bcat) > 1) and (BIndex != 0):
             if np.any(bcat[flux] > 1000.):
-                bFlag = 1
+                bx, by = bcat[x][0], bcat[y][0]
+                brightdist = np.sqrt((bx-center[0])**2+(by-center[0])**2)
+                if brightdist < 150.:
+                    bFlag = 1
 
     # If nothing found in BRIGHT, assign Bdist to edge of image (251.)
     else: 
@@ -182,7 +185,7 @@ def clean_frame(image, outdir, sep=17.):
     # Find closest object in FAINT
     FIndex, Fdist = find_closest(center, zip(fcat[x], fcat[y]))
 
-    DIST = abs(Fdist - Bdist)
+    DIST = np.abs(Fdist - Bdist)
 
     if (DIST < sep):
         # FLAG 1: MOST COMMON CATEGORY --> CLEAN IN FAINT MODE
@@ -191,7 +194,7 @@ def clean_frame(image, outdir, sep=17.):
             category, mode = 1, 'FAINT'
 
         # FLAG 2: CLEAN IN BRIGHT MODE & FLAG THESE!!
-        if (Bdist < sep) & (Fdist > sep):
+        elif (Bdist < sep) & (Fdist > sep):
             ''' There is only one obj in here:
             Two super bright galaxies super close together
             Seen as distinct objs in BRIGHT (but with crazy square edges)
@@ -202,7 +205,7 @@ def clean_frame(image, outdir, sep=17.):
             category, mode = 2, 'BRIGHT'
 
         # FLAG 3: CLEAN IN FAINT MODE
-        if (Bdist > sep) & (Fdist < sep):
+        elif (Bdist > sep) & (Fdist < sep):
             ''' There aren't many of these
             They're oddballs but most are well cleaned in FAINT
             '''
@@ -210,7 +213,7 @@ def clean_frame(image, outdir, sep=17.):
             category, mode = 3, 'FAINT'
 
         # FLAG 4: TWO STAGE CLEANING -- BRIGHT --> RUN SE AGAIN IN FAINT
-        if (Bdist > sep) & (Fdist > sep):
+        elif (Bdist > sep) & (Fdist > sep):
 
             cln = clean_image(cln, bseg, bcat, BIndex, fseg)
 
@@ -234,7 +237,7 @@ def clean_frame(image, outdir, sep=17.):
             
     else:
         # FLAG 5: TWO STAGE CLEANING - BRIGHT --> RUN SE AGAIN IN FAINT
-        if  (Bdist < sep) & (Fdist > sep):
+        if (Bdist < sep) & (Fdist > sep):
 
             cln = clean_image(cln, bseg, bcat, BIndex, fseg)
 
@@ -258,7 +261,7 @@ def clean_frame(image, outdir, sep=17.):
             category, mode = 5, 'FAINT2'
  
         # FLAG 6: CLEAN IN SMOOTH MODE
-        if  (Bdist > sep) & (Fdist < sep):
+        elif (Bdist > sep) & (Fdist < sep):
             ''' These are mostly faint objects not detected in BRIGHT
             run SE in SMOOTH mode and then clean
             '''
@@ -270,7 +273,7 @@ def clean_frame(image, outdir, sep=17.):
             category, mode = 6, 'SMOOTH'
 
         # FLAG 7: CLEAN IN FAINT MODE -- ALL GARBAGE ANYWAY
-        if  (Bdist > sep) & (Fdist > sep):
+        elif (Bdist > sep) & (Fdist > sep):
             ''' this is mostly a garbage bin of crap 
             any object in here needs to be flagged and is likely not a true
             galaxy at all!
@@ -278,8 +281,9 @@ def clean_frame(image, outdir, sep=17.):
             cln = clean_image(cln, fseg, fcat, FIndex, fseg)
             category, mode = 7, 'FAINT'
 
-        # FLAG 8: MATHEMATICALLY IMPOSSIBLE
-        if  (Bdist < sep) & (Fdist < sep):
+        # FLAG 8: 
+        elif  (Bdist < sep) & (Fdist < sep):
+            pdb.set_trace()
             cln = clean_image(cln, bseg, bcat, BIndex, fseg)
             category, mode = 8, 'BRIGHT'
 
