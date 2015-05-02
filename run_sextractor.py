@@ -6,8 +6,10 @@ import pyfits
 import ConfigParser
 import pdb
 import argparse
+import pdb
 
 def single_SE(image, outstr, outdir='', params={}, outstr2=0):
+    flag = True
     basename = os.path.basename(os.path.splitext(image)[0])
     if isinstance(outstr2, int):
         cat = '%s%s_%s_cat.fits' %(outdir, basename, outstr)
@@ -20,12 +22,20 @@ def single_SE(image, outstr, outdir='', params={}, outstr2=0):
     params['-checkimage_type'] = 'segmentation'
     params['-checkimage_name'] = seg
 
-    args = ['/usr/bin/sextractor', image]
+    args = ['/usr/bin/sex', image]
     for key, value in params.iteritems():
         args.append(key)
         args.append(value)
+    try:
+        subprocess.check_call(args)
+    except:
+        # been finding a lot of cutouts that weren't saved properly
+        # trying to run SE on them fails miserably
+        # need to remove these for now until I figure out what to do with them
+        os.rename(image, 'bad_cutouts/'+basename+'.fits')
+        flag = False
 
-    subprocess.check_call(args)
+    return flag
 
 def run_SE(image, section, outdir='', outstr2=0):
     ''' Run SExtractor on COSMOS/ZEST cutouts using the parameters
@@ -57,9 +67,10 @@ def run_SE(image, section, outdir='', outstr2=0):
         outstr = 'smooth'
     
     if isinstance(outstr2, int):
-        single_SE(image, outstr, outdir, params)
+        flag = single_SE(image, outstr, outdir, params)
     else:
-        single_SE(image, outstr, outdir, params, outstr2)
+        flag = single_SE(image, outstr, outdir, params, outstr2)
+    return flag
         
 def main():
     

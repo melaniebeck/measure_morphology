@@ -74,13 +74,13 @@ def savedata(mode, hdr, galnumber, data=[], names=[]):
 
 def clean_directory(outdir):
     if os.path.isfile(outdir+"*bright*.fits"):
-        os.system("rm "+outdir+"*bright*.fits")
+        os.system("rm -rf "+outdir+"*bright*.fits")
 
     if os.path.isfile(outdir+"*faint*.fits"):
-        os.system("rm "+outdir+"*faint*.fits")
+        os.system("rm -rf "+outdir+"*faint*.fits")
 
     if os.path.isfile(outdir+"*smooth*.fits"):
-        os.system("rm "+outdir+"*smooth*.fits")
+        os.system("rm -rf "+outdir+"*smooth*.fits")
 
 
 def clean_frame(image, outdir, sep=17.):
@@ -152,7 +152,9 @@ def clean_frame(image, outdir, sep=17.):
                 outname+'_smooth_seg.fits']
 
     # run SE in FAINT and BRIGHT modes
-    run_sextractor.run_SE(image, 'BRIGHT', outdir)
+    if not run_sextractor.run_SE(image, 'BRIGHT', outdir):
+        return [9, 9, 9, 9]
+
     run_sextractor.run_SE(image, 'FAINT', outdir)
 
     # READ IN ORIG FITS-FILE and both Bright/Faint SEGMAPs
@@ -325,41 +327,38 @@ def clean_frame(image, outdir, sep=17.):
     tseg = fits.getdata(outdir+'f_'+basename+'_smooth_test_seg.fits')
     tcat = fits.getdata(outdir+'f_'+basename+'_smooth_test_cat.fits')
 
-    coords = zip(tcat[x], tcat[y])
-    index, dist = find_closest(center, coords, k=10)
-    objarea = tcat[area][index[0]]
-    areas = tcat[area][np.where(tcat[area] != objarea)]
-
     # If we find obj near the center is too small then we overcleaned it
     uFlag, oFlag = 0, 0
-    if (dist[0] < sep): 
-        if (objarea < 50.): 
-            print 'OVERCLEANED!!!'
-            oFlag = 1
+    if tcat.size:
+        coords = zip(tcat[x], tcat[y])
+        index, dist = find_closest(center, coords, k=10)
+        objarea = tcat[area][index[0]]
+        areas = tcat[area][np.where(tcat[area] != objarea)]
+
+        if (dist[0] < sep): 
+            if (objarea < 50.): 
+                print 'OVERCLEANED!!!'
+                oFlag = 1
 
             # If we find large objs far from the center- didn't clean enough
-        if np.any(areas > 200.):       
-            print 'UNDER CLEANED!!'
-            uFlag = 1
-            
-            cln = clean_image(cln, tseg, tcat, index[0], tseg)
-            data = fits.open(outdir+'f_'+basename+'.fits')
-            data.insert(0,fits.ImageHDU(data=cln, name='UCLN'))
-            data['UCLN'].header.set('SECATIDX', index[0], 'Index in SECAT')
-            data['CAT'].data = tcat
-            data['FSEG'].data = tseg
-            data.writeto(outdir+'f_'+basename+'.fits', clobber=True,
+            if np.any(areas > 200.):       
+                print 'UNDER CLEANED!!'
+                uFlag = 1
+                
+                cln = clean_image(cln, tseg, tcat, index[0], tseg)
+                data = fits.open(outdir+'f_'+basename+'.fits')
+                data.insert(0,fits.ImageHDU(data=cln, name='UCLN'))
+                data['UCLN'].header.set('SECATIDX', index[0], 'Index in SECAT')
+                data['CAT'].data = tcat
+                data['FSEG'].data = tseg
+                data.writeto(outdir+'f_'+basename+'.fits', clobber=True,
                              output_verify='silentfix')
-
-            #imgplt = plt.imshow(cln,cmap='gray_r')
-            #imgplt.set_clim(0., np.max(cln))
-            #plt.close()
-            #plt.show()
-            #pdb.set_trace()
+        else:
+            oFlag = 1
     else:
         # if we don't find anything in the center anymore, something is wrong
         # either overcleaned or blended into nearby object
-        oFlag, uFlag = 1, 1
+        oFlag = 1
 
     # clean up directory
     clean_directory(outdir)

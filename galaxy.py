@@ -29,7 +29,6 @@ import warnings
 class Galaxy(object):
 
     def __init__(self, hdulist, filename, flags):
-        
         # initialize fits image & catalog data
         try:
             image = hdulist['UCLN'].data
@@ -40,7 +39,7 @@ class Galaxy(object):
 
         cat = hdulist['CAT'].data[catinfo]
         segmap = hdulist['FSEG'].data
-
+        
         # flags and naming attributes
         self.cat = flags[0]
         self.oflag, self.uflag, self.bflag = flags[1], flags[2], flags[3]
@@ -53,36 +52,40 @@ class Galaxy(object):
         self.a, self.b = cat['A_IMAGE'], cat['B_IMAGE']
         self.theta = cat['THETA_IMAGE']*pi/180. # in radians?
         self.ra, self.dec = cat['ALPHA_J2000'], cat['DELTA_J2000']
-
+            
         # background attributes
         self.med, self.rms = self.background(image, segmap)
-
+        
         # morphological attributes
         self.Rp, self.Rp_SB, self.Rpflag = self.get_petro(image)
-        self.elipt = cat['ELLIPTICITY']            
+        self.elipt = cat['ELLIPTICITY'] 
+        
         if not np.isnan(self.Rp):
             self.A, self.Ax, self.Ay = self.get_asymmetry(image)
             self.r20, self.r80, self.C = self.get_concentration(image)
             self.G = self.get_gini1(image)
             self.M20, self.Mx, self.My = self.get_m20_1(image)
-            #self.M1 = self.get_m20_nomin(image)
-            #self.mask = utils.get_SB_mask(self.Rp, self.Rp_SB, image, self.name)
-            #if not isinstance(self.mask, int):
-            #self.G2 = self.get_gini2(image)
-            #self.M2, self.Mcx2, self.Mcy2 = self.get_m20_2(image)
-
         else:
             self.A, self.Ax, self.Ay = np.nan, self.x, self.y
             self.r20, self.r80, self.C = np.nan, np.nan, np.nan
             self.G = np.nan 
             self.M20, self.Mx, self.My = np.nan, self.x, self.y
-            #self.M2, self.Mcx2, self.Mcy2 = np.nan, self.x, self.y
-
-        #dir(self) in cmd line to see all the hidden shits
-
+                
     def __enter__(self):
         return self
-      
+
+    def settonan(self):
+         self.cat = flags[0]
+         self.oflag, self.uflag, self.bflag = flags[1], flags[2], flags[3]
+         self.name = os.path.basename(os.path.splitext(filename)[0])
+         self.e = self.x= self.y = self.kron = self.a = self.b = np.nan
+         self.theta = self.elipt = self.ra = self.dec= np.nan
+         self.med =  self.rms = np.nan
+         self.Rp = self.Rp_SB = self.Rpflag = np.nan
+         self.A = self.Ax = self.Ay = np.nan
+         self.r20 = self.r80 = self.C = np.nan
+         self.M20 = self.Mx = self.My = self.G = np.nan 
+
     def background(self, data, segmap):
         mean, median, std = sigma_clipped_stats(data[segmap==0])
         #median = np.median(data[segmap==0])
@@ -477,7 +480,6 @@ class Galaxy(object):
         mask1 = gal_aper.aper*image
         self.stn = self.get_stn(mask1)
         #print self.stn
-
         mtots = []
         for i in x:
             for j in y.transpose():
@@ -487,8 +489,10 @@ class Galaxy(object):
                 indices1 = range(ind2, ind2 + dist_grid.shape[1])
                 shift_grid = dist_grid.take(indices0, axis=0, mode='wrap')\
                                       .take(indices1, axis=1, mode='wrap')
-                mtots.append(np.sum(mask1*shift_grid))
-
+                try:
+                    mtots.append(np.sum(mask1*shift_grid))
+                except:
+                    pdb.set_trace()
         Mtot = np.min(mtots)
         mtot = np.array(mtots).reshape([len(x), len(y.transpose())])
         xc = x[np.where(mtot == Mtot)[0]][0]
@@ -623,7 +627,7 @@ def main():
         help='Directory of fits images on which to run LLE.')
     parser.add_argument('catalog_name', type=str,
         help='Specify the desired name for output catalog.')
-    parser.add_argument('outdir_name', type=str,
+    parser.add_argument('--outdir', type=str, default='output/datacube/', 
         help='Specify the desired name for output directory.')
     args = parser.parse_args()
 
@@ -633,36 +637,46 @@ def main():
     warnings.filterwarnings('ignore', message='Overwriting existing file .*',
                             module='pyfits')
 
-    utils.checkdir(args.outdir_name)
+    utils.checkdir(args.outdir)
 
-    #t = Table(names=('cat', 'oflag', 'uflag', 'bflag', 'bdist'))
+    try:
+        t = Table.read(args.catalog_name)
+        counter = len(t)
+        fitsfiles = fitsfiles[counter::]
+    except:
+        counter = 0
 
     for idx, f in enumerate(fitsfiles): 
         basename = os.path.basename(f)
-        filename = args.outdir_name+'f_'+basename
+        filename = args.outdir+'f_'+basename
 
-        if not os.path.isfile(filename):
-            print "File not found! Running SExtractor before proceeding."
-
+        #if not os.path.isfile(filename):
+        print "File not found! Running SExtractor before proceeding."
         print "Cleaning ", os.path.basename(f)
-        flags = clean.clean_frame(f, args.outdir_name)
+        flags = clean.clean_frame(f, args.outdir)
+        
+        # check to see if SExtractor failed
+        if np.any(np.array(flags)-9 < 0):
 
-        print "Running", os.path.basename(f)
-        hdulist = fits.open(filename, memmap=True)
-        g = Galaxy(hdulist, filename, flags)
-        #'''
-        if not np.isnan(g.Rp):
-            galaxy_plot.plot(g, hdulist)
-        if idx == 0:
-            t, gal_dict = g.table(init=True)
-            t.add_row(gal_dict)
+            print "Running", os.path.basename(f)
+            hdulist = fits.open(filename, memmap=True)
+
+            g = Galaxy(hdulist, filename, flags)
+            if not np.isnan(g.Rp):
+                galaxy_plot.plot(g, hdulist)
+            if (idx == 0) and (counter == 0):
+                t, gal_dict = g.table(init=True)
+                t.add_row(gal_dict)
+            else:
+                t.add_row(g.table())
+                    
+            hdulist.close()
+            t.write(args.catalog_name, overwrite=True)
+            print counter," galaxies measured!"
+            counter+=1
+            del g
         else:
-            t.add_row(g.table())
-        #'''
-        #t.add_row((flags[0], flags[1], flags[2], flags[3], flags[4]))
-        hdulist.close()
-        t.write(args.catalog_name, overwrite=True)
-        del g
+            print "SExtractor failed on "+basename
 
     #t.write('bigsample_mycat_flags.dat', format='ascii.fixed_width')
     print "Parameter catalog complete.\nSaving catalog to file..."
