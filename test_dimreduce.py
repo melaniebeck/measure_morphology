@@ -192,7 +192,7 @@ def main():
     args = parser.parse_args()
 
     dat = Table.read('catalogs/ZEST_catalog_colors.fits')
-    
+
     mykeys = ['elipt', 'C', 'A', 'G', 'M20']
     zkeys = ['cc', 'aa', 'm20', 'gg']
 
@@ -236,6 +236,7 @@ def main():
         #                  n_neighbors, (t1-t0))
 
     elif args.alg == 'ISO':
+        method='IsoMap'
         print "performing IsoMap with ",n_neighbors
 
         t0 = time()
@@ -251,6 +252,8 @@ def main():
 
         print "begin plotting"
         plot_dimreduce(Y2, testcols, method, axis=0)
+        plot_dimreduce(Y2, testcols, method, axis=1)
+        plot_dimreduce(Y2, testcols, method, axis=2)
         plot_dimreduce_3D(Y, traincols, Y2, testcols, method, 
                           n_neighbors, (t1-t0))
 
@@ -289,8 +292,10 @@ def main():
         #print "Predicted classes:", predict
         #pdb.set_trace()
         
-        plot_LDA_3D(Y2, y,[1,2,3,4,5,6,7])
+        #plot_LDA_3D(Y2, y,[1,2,3,4,5,6,7])
+        plot_LDA(Y2, y, [1,2,3,4,5,6,7], axis=0)
         plot_LDA(Y2, y, [1,2,3,4,5,6,7], axis=1)
+        plot_LDA(Y2, y, [1,2,3,4,5,6,7], axis=2)
 
 
 if __name__ == '__main__':
