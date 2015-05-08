@@ -8,30 +8,16 @@ from matplotlib.ticker import NullFormatter
 from sklearn.manifold import LocallyLinearEmbedding as LLE
 from sklearn.manifold import SpectralEmbedding, Isomap, TSNE
 from sklearn.lda import LDA
-from astropy.table import Table
+from astropy.table import Table, Column
 from time import time
 import argparse
+
+import prep_catalogs
 
 Axes3D
 
 
-def whiten_data(data, keys):
-    bad, good = [], []
-    subdat = data[keys]
-    out = np.dstack(np.array([data[k] for k in subdat.columns]))[0]
-    for i, params in enumerate(out):
-        if np.any(np.isnan(params)) or np.any(np.isinf(params)):
-            bad.append(i)
-        else:
-            good.append(i)
 
-    means = [np.mean(subdat[good][k]) for k in keys] 
-    stds = [np.std(subdat[good][k]) for k in keys]
-
-    xx = np.array([(params-means)/stds for params in out])
-    whitedata = xx[good]
-    colors = data['color'][good]
-    return whitedata, colors
 
 def set_axes(axis):
     # determine along which axis to break into slices
@@ -64,7 +50,7 @@ def plot_dimreduce_3D(X, Xcol, y, ycol, method, n, t):
     plt.suptitle(method+" with training sample of %i points" 
                  %len(X), fontsize=14)
     
-    ax = fig.add_subplot(121, projection='3d') 
+    ax = fig.add_subplot(111, projection='3d') 
     ax.scatter(X[:, 0], X[:, 1],  X[:, 2], color=Xcol, 
                marker='.', cmap=plt.cm.Spectral)
     
@@ -78,7 +64,7 @@ def plot_dimreduce_3D(X, Xcol, y, ycol, method, n, t):
     ax.set_zlabel('Z Label')
     #ax.xaxis.set_major_formatter(NullFormatter())
 
-    
+    '''
     ax = fig.add_subplot(122, projection='3d') 
     ax.scatter(y[:, 0], y[:, 1], y[:, 2], color=ycol, 
                marker='.', cmap=plt.cm.Spectral)
@@ -91,12 +77,14 @@ def plot_dimreduce_3D(X, Xcol, y, ycol, method, n, t):
     ax.set_zlabel('Z Label')
     plt.axis('tight')
     plt.tight_layout()
+    '''
     plt.savefig(method+'.pdf')
     plt.show()
 
 def plot_dimreduce(data, color, method, axis=0):
     xlab, ylab, lab, X, Y = set_axes(axis)
 
+    #pdb.set_trace()
     fig = plt.figure(figsize=(20,12))
     steps = np.linspace(min(data[:,axis]), max(data[:,axis]), 9)
 
@@ -111,7 +99,8 @@ def plot_dimreduce(data, color, method, axis=0):
         col = color[slice]
 
         ax = fig.add_subplot(241+inc)
-        ax.scatter(dat[:, X], dat[:, Y], c=col, marker='o')
+        pdb.set_trace()
+        ax.scatter(np.array(dat[:, X]), np.array(dat[:, Y]), c=col, marker='o')
         ax.set_title(str(step)+' < '+lab+' < '+str(steps[inc+1]))
         ax.set_xlabel(xlab)
         ax.set_ylabel(ylab)
@@ -185,22 +174,32 @@ def main():
                                 'Perform Dimensionality Reduction')
     parser.add_argument('--alg', type=str, default='MLLE',
         help='Algorithm to reduce dimensionality.')
-    #parser.add_argument('catalog_name', type=str,
-    #    help='Specify the desired name for output catalog.')
+    parser.add_argument('catalog', type=str,
+        help='Specify the catalog on which to perform DimReduce.')
     #parser.add_argument('outdir_name', type=str,
     #    help='Specify the desired name for output directory.')
     args = parser.parse_args()
 
-    dat = Table.read('catalogs/ZEST_catalog_colors.fits')
+    #dat = Table.read('catalogs/ZEST_catalog_colors.fits')
+    dat = Table.read(args.catalog)
 
-    mykeys = ['elipt', 'C', 'A', 'G', 'M20']
-    zkeys = ['cc', 'aa', 'm20', 'gg']
-
-    training_sample = dat[0:10000]
-    testing_sample = dat[10001:20000]
+    #training_sample = dat[0:10000]
+    #testing_sample = dat[10001:20000]
     
-    train, traincols = whiten_data(training_sample, zkeys)
-    test, testcols = whiten_data(testing_sample, zkeys)
+    mkeys = ['elipt', 'C', 'A_2a', 'G', 'M20']
+    #zkeys = ['cc', 'aa', 'm20', 'gg']
+
+    dat.remove_column('color')
+    colors = np.array(['yellow', 'red', 'tomato', 'lightsalmon', 'green', 
+                       'limegreen', 'lime', 'purple', 'orchid', 'plum'])
+    classes = ['M  ', 'E1 ', 'E2 ', 'E3 ', 'D1 ', 'D2 ', 'D3 ', 'B1 ', 
+               'B2 ', 'B3 ']
+    dat = color_data(dat, 'zclass', classes, colors)
+    dat.write(args.catalog, overwrite=True)
+
+    train, traincols = whiten_data(dat, mkeys)
+    
+    #test, testcols = whiten_data(testing_sample, zkeys)
 
     n_neighbors = 20
     n_components = 3
@@ -216,24 +215,36 @@ def main():
             method = 'hessian'
         #for i, n_neigh in enumerate(n_neighbors):
 
-        print "performing "+method+" LLE with ",n_neighbors
+        
+        print "performing "+method+" LLE with",n_neighbors,"nearest neighbors"
+        print "on training sample of",len(dat),"objects"
+
         t0 = time()
         A = LLE(n_neighbors, n_components, eigen_solver='auto', method=method)
         error = A.fit(train).reconstruction_error_
 
         Y = A.fit_transform(train)
-        Y2 = A.transform(test)
-
+        #Y2 = A.transform(test)
         t1 = time()
+
+        pdb.set_trace()
+        plot_dimreduce(Y, traincols, method, axis=0)
+
         print "%s: %.2g sec" %(args.alg, t1-t0)
         print "reconstruction error: ", error
+        
+        #pdb.set_trace()
+        # read in a previous one that I saved. 
+        Y2 = Table.read('MLLE_SDSStrainingsample.fits')
+        Y2 = np.dstack(np.array([Y2[k] for k in Y2.columns]))[0]
 
         print "begin plotting"
-        plot_dimreduce(Y2, testcols, method, axis=0)
-        plot_dimreduce(Y2, testcols, method, axis=1)
-        plot_dimreduce(Y2, testcols, method, axis=2)
-        #plot_dimreduce_3D(Y, traincols, Y2, testcols, method, 
-        #                  n_neighbors, (t1-t0))
+        pdb.set_trace()
+        plot_dimreduce(Y2, traincols, method, axis=0)
+        plot_dimreduce(Y2, traincols, method, axis=1)
+        plot_dimreduce(Y2, traincols, method, axis=2)
+        plot_dimreduce_3D(Y2, traincols, Y2, testcols, method, 
+                          n_neighbors, (t1-t0))
 
     elif args.alg == 'ISO':
         method='IsoMap'
