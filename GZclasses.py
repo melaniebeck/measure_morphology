@@ -8,46 +8,49 @@ import matplotlib.pyplot as plt
 
 
 
-def select_sample():
+def select_sample(gzclass, outname):
     '''
-    Put together a "pure" sample of GZ2 galaxies by using the thresholds stipulated
-    by Willett et al 2013 for the Ellipticals (T07), Edge On disks (T09) and 
-    Regular Disks (T05)
+    Put together a "pure" sample of GZ2 galaxies by using the thresholds 
+    stipulated by Willett et al 2013 for the Ellipticals (T07), 
+    Edge On disks (T09) and Regular Disks (T05)
 
     Pull these particular galaxies from the main sample of galaxies contained in
     zoo2MainSpecz.fits 
 
     Pull merger classification from GZ1 cross-matched with GZ2.
 
-    Define a new column called "zest_class" that assigns each galaxy a letter based
-    on it's p-fraction for it's given GZ2 category. 
+    Define a new column called "zclass" that assigns each galaxy a 
+    number based on it's p-fraction for it's given GZ2 category. 
 
+    Class Numbers can be found in my Google Doc
     M -- Mergers
     E[1-3] -- Ellipticals of varying shapes
     D[1-3] -- Edge on disks with various bulge shapes
     B[1-3] -- Regular disks with varying degrees of buldge size
 
-    Save this subsample of galaxies with a new catalog name (zoo2_puresample.fits)
+    Save this subsample of galaxies with a new catalog name 
+    (zoo2_puresample.fits)
     
     '''
-    gzclass = Table.read('zoo2MainSpecz.fits')
+    #gzclass = Table.read('zoo2MainSpecz_Ancillary.fits')
     gzmerg = Table.read('zoo2Mergers.fits')
-    
-    gzclass.add_column(Column(data=np.empty((len(gzclass),1)), 
-                              name='zclass', dtype='S3'))
 
-    # Mark mergers from gzmerg in gzclass with 'M'
+    pdb.set_trace()
+    
+    gzclass.add_column(Column(data=np.zeros(len(gzclass)), 
+                              name='zclass', dtype=float))
+
+    # Mark mergers from gzmerg in gzclass with 1.0
     for thing in gzclass:
         if thing['dr7objid'] in gzmerg['dr7objid']:
-            thing['zclass']='M'
+            thing['zclass'] = 1.0
 
-    mergers = np.where(gzclass['zclass']=='M')
+    mergers = np.where(gzclass['zclass']==1.0)
     mer = gzclass[mergers[0]]
     mer.write('mergers.fits', overwrite=True)
     
     gzclass.remove_rows(mergers[0])
 
-   
     ellipts = np.where(
         (gzclass['t01_smooth_or_features_a01_smooth_count']>=20) &
         (gzclass['t01_smooth_or_features_a01_smooth_debiased']>=0.469) )
@@ -60,20 +63,21 @@ def select_sample():
                           thing['t07_rounded_a16_completely_round_debiased']])
         
         if thing['t07_rounded_a16_completely_round_debiased'] == megamax:
-            thing['zclass']='E1'
+            thing['zclass']=2.0
             
         elif thing['t07_rounded_a17_in_between_debiased'] == megamax:
-            thing['zclass']='E2'
+            thing['zclass']=2.1
             
         elif thing['t07_rounded_a18_cigar_shaped_debiased'] == megamax:
-            thing['zclass']='E3'
+            thing['zclass']=2.2
 
-    ell.write('ellipticals.fits', overwrite=True)
+    #ell.write('ellipticals.fits', overwrite=True)
 
             ###------------------------------------------------------------###
 
     edgeons = np.where(
-        (gzclass['t01_smooth_or_features_a02_features_or_disk_debiased']>=0.430) &
+        (gzclass['t01_smooth_or_features_a02_features_or_disk_debiased']
+         >=0.430) &
         (gzclass['t02_edgeon_a04_yes_debiased']>=0.715) &
         (gzclass['t02_edgeon_a04_yes_count']>=20) )
     
@@ -85,83 +89,61 @@ def select_sample():
                           thing['t09_bulge_shape_a27_no_bulge_debiased']])
         
         if thing['t09_bulge_shape_a25_rounded_debiased'] == megamax:
-            thing['zclass']='D1'
+            thing['zclass']=3.0
             
         elif thing['t09_bulge_shape_a26_boxy_debiased'] == megamax:
-            thing['zclass']='D2'
+            thing['zclass']=3.1
             
         elif thing['t09_bulge_shape_a27_no_bulge_debiased'] == megamax:
-            thing['zclass']='D3'
+            thing['zclass']=3.2
     
-    edg.write('edgeons.fits', overwrite=True)
+    #edg.write('edgeons.fits', overwrite=True)
 
             ###-------------------------------------------------------------###
 
     bulgies = np.where(
-        (gzclass['t01_smooth_or_features_a02_features_or_disk_debiased']>=0.430) &
+        (gzclass['t01_smooth_or_features_a02_features_or_disk_debiased']
+         >=0.430) &
         (gzclass['t02_edgeon_a05_no_debiased']>=0.715) &
         (gzclass['t02_edgeon_a05_no_count']>=20) )
     
     bul = gzclass[bulgies]
     
     for thing in bul:
-        megamax = np.max([thing['t05_bulge_prominence_a10_no_bulge_debiased'],
-                          thing['t05_bulge_prominence_a11_just_noticeable_debiased'],
-                          thing['t05_bulge_prominence_a12_obvious_debiased']+
-                          thing['t05_bulge_prominence_a13_dominant_debiased']])
+        megamax = np.max(
+            [thing['t05_bulge_prominence_a10_no_bulge_debiased'],
+             thing['t05_bulge_prominence_a11_just_noticeable_debiased'],
+             thing['t05_bulge_prominence_a12_obvious_debiased']+
+             thing['t05_bulge_prominence_a13_dominant_debiased']] )
 
         if thing['t05_bulge_prominence_a10_no_bulge_debiased'] == megamax:
-            thing['zclass']='B1'
+            thing['zclass']=4.2
             
         elif thing['t05_bulge_prominence_a11_just_noticeable_debiased'] == megamax:
-            thing['zclass']='B2'
+            thing['zclass']=4.1
             
         elif (thing['t05_bulge_prominence_a12_obvious_debiased'] + 
               thing['t05_bulge_prominence_a13_dominant_debiased']) == megamax:
-            thing['zclass']='B3'
+            thing['zclass']=4.0
 
-    bul.write('bulgedisks.fits', overwrite=True)
+    #bul.write('bulgedisks.fits', overwrite=True)
 
     pure_sample = vstack([mer,ell,edg,bul])
-    pure_sample.write('zoo2_pure_sample.fits', overwrite=True)
-
-def match_morphology():
-
-    gzmorph = Table.read('SDSS_morphology_v1.fits')
-    gzclass = Table.read('zoo2_puresample.fits')
-
-    idx = []
-    for gal in gzmorph:
-        name = int(string.split(gal['name'],'_')[1])
-        loc = np.where(name == gzclass['dr7objid'])
-        if loc[0]:
-            idx.append(loc[0][0])
+    pure_sample.write(outname, overwrite=True)
 
 
-    #training_sample = hstack([])
-    pdb.set_trace()
-
-
-def adjust_columnname():
-    gzmorph = Table.read('SDSS_morphology_v2.fits')
-    objids = np.array([int(string.split(n,'_')[1]) for n in gzmorph['name']])
-    gzmorph['dr7objid'] = objids
-    gzmorph.write('SDSS_morphology_v1.fits', overwrite=True)
-    pdb.set_trace()
-    
 def main():
 
     # Step 1: determine GZ2 class categories/select sample
-    select_sample()
+    filename = 'SDSSbig_GZ_matched_MAcut.fits'
+    outname = 'zoo2_direct_MAcut_big.fits'
+    data = Table.read(filename)
+    select_sample(data, outname)
 
     # Step 2: From what morphologies we've already measured, see
     # which galaxies overlap with the selected sample
     #adjust_columnname()
     
-    #match_morphology()
-
-    # Step 3: Use this sample as the training set for the LLE. 
-    # RUN. DAT. BITCH.
 
 
 if __name__ == '__main__':

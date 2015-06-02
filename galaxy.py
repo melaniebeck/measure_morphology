@@ -61,14 +61,14 @@ class Galaxy(object):
         self.elipt = cat['ELLIPTICITY'] 
         
         if not np.isnan(self.Rp):
-            self.A, self.Ax, self.Ay = self.get_asymmetry(image)
-            self.r20, self.r80, self.C = self.get_concentration(image)
-            self.G = self.get_gini1(image)
+            #self.A, self.Ax, self.Ay = self.get_asymmetry(image)
+            #self.r20, self.r80, self.C = self.get_concentration(image)
+            #self.G = self.get_gini1(image)
             self.M20, self.Mx, self.My = self.get_m20_1(image)
         else:
-            self.A, self.Ax, self.Ay = np.nan, self.x, self.y
-            self.r20, self.r80, self.C = np.nan, np.nan, np.nan
-            self.G = np.nan 
+            #self.A, self.Ax, self.Ay = np.nan, self.x, self.y
+            #self.r20, self.r80, self.C = np.nan, np.nan, np.nan
+            #self.G = np.nan 
             self.M20, self.Mx, self.My = np.nan, self.x, self.y
                 
     def __enter__(self):
@@ -506,11 +506,12 @@ class Galaxy(object):
         m20_aper = utils.EllipticalAperture((xc[0], yc[0]), self.Rp, 
                                             self.Rp/self.e, self.theta, image)
         galpix = m20_aper.aper*image
-
-        grid_sorted = np.array([i for j,i in sorted(zip(galpix.flatten(),\
-                                                        grid.flatten()),\
+        
+        gsort = sorted(np.abs(galpix.flatten()), reverse=True)
+        galpix_sorted = np.array(gsort)
+        grid_sorted = np.array([i for j,i in sorted(zip(gsort, grid.flatten()),
                                                     reverse=True)])
-        galpix_sorted = np.array(sorted(galpix.flatten(), reverse=True))
+        pdb.set_trace()
         ftot20 = 0.2*np.sum(galpix_sorted)
         fcumsum = np.cumsum(galpix_sorted)
         m20_pix = np.where(fcumsum< ftot20)[0]
