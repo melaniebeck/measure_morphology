@@ -4,7 +4,7 @@ import pdb
 import argparse
 import numpy as np
 from astropy.table import Table, Column
-
+import string
 
 
 def colorcode_zest(cat, outname):
@@ -129,8 +129,9 @@ def whiten_data(data, keys):
     xx = np.array([(params-means)/stds for params in out])
     whitedata = xx[good]
     colors = np.array(data['color'][good])
-    targets = np.array(data['zclass'][good])
-    return whitedata, colors, targets
+    labels = np.array(data['zclass'][good])
+    targets = np.dstack((labels, colors))[0]
+    return whitedata, targets
 
 
 def adjust_columnname(data, filename):
@@ -139,20 +140,34 @@ def adjust_columnname(data, filename):
     in front. Remove the 'f_' and cast the number as an int in order to match
     with other GZ catalogs
     '''
+    objids = []
+    i = 1
+    for d in data:
+        name = d['name'].strip()
+        if name == 'f_mahshit':
+            objids.append(000000000000000000+i)
+            i+=1
+        else:
+            objids.append(int(string.split(name, '_')[1]))
 
-    data = data[np.where(data['name']!='f_mahshit')]
-    objids = np.array([int(string.split(n,'_')[1]) for n in data['name']])
+    print i
+    pdb.set_trace()
+    #objids = np.array([int(string.split(n,'_')[1]) for n in data['name']])
     data['dr7objid'] = objids
     data.write(filename, overwrite=True)
 
-
 def main():
     #'''
-    filename = 'testsample_direct_MAcut.fits'
+    #filename = 'testsample_direct_MAcut.fits'
+    filename = 'SDSS_morphology_168K.fits'
     data = Table.read(filename)
-    data = color_data(data, 'zclass')
-    data.write(filename, overwrite=True)
+    adjust_columnname(data, filename)
+
+    #data = color_data(data, 'zclass')
+    #data.write(filename, overwrite=True)
     #'''
+
+    pdb.set_trace()
 
     filename = 'testsample_kaggle_MAcut.fits'
     data = Table.read(filename)

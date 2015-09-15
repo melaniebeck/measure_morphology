@@ -1,3 +1,8 @@
+'''
+Collection of plotting functions used by the galaxy.py class
+Has a couple methods that can be accessed outside of the the class
+'''
+
 #! usr/bin/env python
 
 import matplotlib.pyplot as plt

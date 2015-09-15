@@ -127,15 +127,16 @@ def shift_image(data, deltax, deltay, phase=0, nthreads=1, use_numpy_fft=False,
 def get_SB_Mask(Rp, Rp_SB, image, outname):
     '''
     Used to create a mask defining pixels belonging to a galaxy based on 
-    the surface brightness at 1 Petrosian radius
+    the mean surface brightness at 1 Petrosian radius (Lotz 2004)
 
     Steps:
     1. convolve cleaned galaxy image with a Gaussian with sig=Rp/5
-       (Lotz et al 2004)
     2. measure the SB, mu, at Rp
     3. pixels in smoothed image with flux >= mu are assigned to the mask
     4. Return the mask
     '''
+    im_center = [round(image.shape[0]/2), round(image.shape[1]/2)]
+
     conv = ndimage.gaussian_filter(image, sigma=Rp/5)
     if not np.any(conv > Rp_SB):
         return -1
@@ -153,7 +154,8 @@ def get_SB_Mask(Rp, Rp_SB, image, outname):
     # if there exists more than one object in the mask, we need to isolate the
     # correct one -- our object at the center
     if num_labels > 1:
-        mask2 = np.array([True if label_img[x] == label_img[251, 251] \
+        mask2 = np.array([True if label_img[x] == label_img[im_center[0], 
+                                                            im_center[1]] \
                              else False for x in np.ndindex(conv.shape)])
         mask2 = mask2.reshape(conv.shape).astype('float')
 

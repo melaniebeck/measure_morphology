@@ -35,7 +35,7 @@ def select_sample(gzclass, outname):
     #gzclass = Table.read('zoo2MainSpecz_Ancillary.fits')
     gzmerg = Table.read('zoo2Mergers.fits')
 
-    pdb.set_trace()
+    #pdb.set_trace()
     
     gzclass.add_column(Column(data=np.zeros(len(gzclass)), 
                               name='zclass', dtype=float))
@@ -47,7 +47,7 @@ def select_sample(gzclass, outname):
 
     mergers = np.where(gzclass['zclass']==1.0)
     mer = gzclass[mergers[0]]
-    mer.write('mergers.fits', overwrite=True)
+    #mer.write('mergers.fits', overwrite=True)
     
     gzclass.remove_rows(mergers[0])
 
@@ -135,8 +135,11 @@ def select_sample(gzclass, outname):
 def main():
 
     # Step 1: determine GZ2 class categories/select sample
-    filename = 'SDSSbig_GZ_matched_MAcut.fits'
-    outname = 'zoo2_direct_MAcut_big.fits'
+    #filename = 'SDSSbig_GZ_matched_MAcut.fits'
+    #outname = 'zoo2_direct_MAcut_big.fits'
+
+    filename = 'SDSS168K_GZSpecZ_matched_MAcut_zcut.fits'
+    outname = 'zoo2_direct_MAcut_zcut_168K.fits'
     data = Table.read(filename)
     select_sample(data, outname)
 

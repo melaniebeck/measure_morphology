@@ -469,7 +469,7 @@ def compare_catalogs(z, m, fout='mycat'):
     fig = plt.figure(figsize=(10,8))
     gs = plt.GridSpec(2,4)
 
-    cut = np.where(m['Rp'] != -1)
+    cut = np.where(m['Rp'] != c)
     # plot Petrosian Radius
     ax1 = fig.add_subplot(gs[0,0])
     ax1.plot(z['rpet'][cut], m['Rp'][cut],'ro', [0,200],[0,200], 'k--')
@@ -521,6 +521,18 @@ def compare_catalogs(z, m, fout='mycat'):
     plt.close()
 
 def compare_parameters(dat, fout='mycat'):
+    try:
+        dat['A']= dat['A_1a']
+    except:
+        pass
+
+    try:
+        colors = dat['t_color']
+        colors = [c.rstrip() for c in colors]
+    except:
+        colors = 'black'
+
+    #pdb.set_trace()
 
     fig = plt.figure(figsize=(10,8))
     gs = plt.GridSpec(4,4)
@@ -528,7 +540,7 @@ def compare_parameters(dat, fout='mycat'):
 
     #'''
     ax10 = fig.add_subplot(gs[3,0])
-    ax10.plot(dat['A'], dat['C'], 'k.')
+    ax10.scatter(dat['A'], dat['C'], color=colors, marker='.', alpha=0.25)
     ax10.set_xlabel('A', fontsize=20)
     ax10.set_ylabel('C', fontsize=20)
     ax10.set_ylim(0., 5.)
@@ -537,116 +549,279 @@ def compare_parameters(dat, fout='mycat'):
     ax10.set_yticks([1,2,3,4])
     #ax10.tick_params(axis='x', pad=8)
     #plt.text(0.5, 0.5, '10', fontsize=20, color='red', transform=ax10.transAxes)
+
+    ax10.text(0,19, 'Ellipticals', fontsize=16, color='red')
+    ax10.text(0,18, 'Disks', fontsize=16, color='purple')
+    ax10.text(0,17, 'Edge-on Disks', fontsize=16, color='green')
+    ax10.text(0,16, 'Mergers', fontsize=16, color='yellow')
+
     
     ################
-
+    
     ax8 = fig.add_subplot(gs[3,1], sharey=ax10)
     plt.setp(ax8.get_yticklabels(), visible=False)
-    ax8.plot(dat['G1'], dat['C'], 'k.')
+    ax8.scatter(dat['G'], dat['C'], color=colors, marker='.', alpha=0.25)
     ax8.set_xlabel('G', fontsize=20)
     #ax8.set_ylabel('C')
-    ax8.set_xlim(0.35, 0.7)
+    ax8.set_xlim(0.3, 0.7)
     ax8.set_ylim(0., 5.)
     ax8.set_xticks([0.4, 0.5, 0.6])
     #plt.text(0.5, 0.5, '8', fontsize=20, color='red', transform=ax8.transAxes)
-
+    
     ax9 = fig.add_subplot(gs[2,1], sharex=ax8)
     plt.setp(ax9.get_xticklabels(), visible=False)
-    ax9.plot(dat['G1'], dat['A'], 'k.')
+    ax9.scatter(dat['G'], dat['A'], color=colors, marker='.', alpha=0.25)
     #ax9.set_xlabel('G')
     ax9.set_ylabel('A', fontsize=20)
-    ax9.set_xlim(0.35, 0.7)
+    ax9.set_xlim(0.3, 0.7)
     ax9.set_ylim(0., .8)
     ax9.set_yticks([0.2, 0.4, 0.6])
     #plt.text(0.5, 0.5, '9', fontsize=20, color='red', transform=ax9.transAxes)
-
+    
     ################
-
+    
     ax5 = fig.add_subplot(gs[3,2], sharey=ax10)
     plt.setp(ax5.get_yticklabels(), visible=False)
-    ax5.plot(dat['M1'], dat['C'], 'k.')
+    ax5.scatter(dat['M20'], dat['C'], color=colors, marker='.', alpha=0.25)
     ax5.set_xlabel('M20', fontsize=20)
     #ax5.set_ylabel('C')
-    ax5.set_xlim(-3.0, 0.)
+    ax5.set_xlim(0., -3.)
     ax5.set_ylim(0., 5.)
     ax5.set_xticks([-2.5, -1.5, -0.5])
     #plt.text(0.5, 0.5, '5', fontsize=20, color='red', transform=ax5.transAxes)
-
+    
     ax6 = fig.add_subplot(gs[2,2], sharex=ax5, sharey=ax9)
     plt.setp((ax6.get_xticklabels(), ax6.get_yticklabels()), visible=False)
-    ax6.plot(dat['M1'], dat['A'], 'k.')
+    ax6.scatter(dat['M20'], dat['A'], color=colors, marker='.', alpha=0.25)
     #ax6.set_xlabel('M20')
     #ax6.set_ylabel('A')
-    ax6.set_xlim(-3.0, 0.)
+    ax6.set_xlim(0., -3.)
     ax6.set_ylim(0., .8)
     #plt.text(0.5, 0.5, '6', fontsize=20, color='red', transform=ax6.transAxes)
-
+    
     ax7 = fig.add_subplot(gs[1,2], sharex=ax5)
     plt.setp(ax7.get_xticklabels(), visible=False)
-    ax7.plot(dat['M1'], dat['G1'], 'k.')
+    ax7.scatter(dat['M20'], dat['G'], color=colors, marker='.', alpha=0.25)
     #ax7.set_xlabel('M20')
     ax7.set_ylabel('G', fontsize=20)
-    ax7.set_xlim(-3.0, 0.)
-    ax7.set_ylim(0.35, 0.7)
+    ax7.set_xlim(0., -3.)
+    ax7.set_ylim(0.3, 0.7)
     ax7.set_yticks([0.4, 0.5, 0.6])
     #plt.text(0.5, 0.5, '7', fontsize=20, color='red', transform=ax7.transAxes)
-
+    
     ################
-
+    
     ax1 = fig.add_subplot(gs[3,3], sharey=ax10)
     plt.setp(ax1.get_yticklabels(), visible=False)
-    ax1.plot(dat['elipt'], dat['C'], 'k.')
+    ax1.scatter(dat['elipt'], dat['C'], color=colors, marker='.', alpha=0.25)
     ax1.set_xlabel('elipt', fontsize=20)
     #ax1.set_ylabel('C')
     ax1.set_ylim(0., 5.)
     ax1.set_xticks([0.2, 0.4, 0.6, 0.8])
     #plt.text(0.5, 0.5, '1', fontsize=20, color='red', transform=ax1.transAxes)
-
+    
     ax2 = fig.add_subplot(gs[2,3], sharex=ax1, sharey=ax9)
     plt.setp((ax2.get_xticklabels(), ax2.get_yticklabels()), visible=False)
-    ax2.plot(dat['elipt'], dat['A'], 'k.')
+    ax2.scatter(dat['elipt'], dat['A'], color=colors, marker='.', alpha=0.25)
     #ax2.set_xlabel('elipt')
     #ax2.set_ylabel('A')
     ax2.set_ylim(0., .8)
     #plt.text(0.5, 0.5, '2', fontsize=20, color='red', transform=ax2.transAxes)
-
+    
     ax3 = fig.add_subplot(gs[1,3], sharex=ax1, sharey=ax7)
     plt.setp((ax3.get_xticklabels(),ax3.get_yticklabels()), visible=False)
-    ax3.plot(dat['elipt'], dat['G1'], 'k.')
+    ax3.scatter(dat['elipt'], dat['G'], color=colors, marker='.', alpha=0.25)
     #ax3.set_xlabel('elipt')
     #ax3.set_ylabel('G')
-    ax3.set_ylim(0.35, 0.7)
+    ax3.set_ylim(0.3, 0.7)
     #plt.text(0.5, 0.5, '3', fontsize=20, color='red', transform=ax3.transAxes)
-
+    
     ax4 = fig.add_subplot(gs[0,3])
     plt.setp(ax4.get_xticklabels(), visible=False)
-    ax4.plot(dat['elipt'], dat['M1'], 'k.')
+    ax4.scatter(dat['elipt'], dat['M20'], color=colors, marker='.', alpha=0.25)
     #ax4.set_xlabel('elipt')
     ax4.set_ylabel('M20', fontsize=20)
-    ax4.set_ylim(-3.0, 0.)
+    ax4.set_ylim(0., -3.)
     ax4.set_yticks([-2.5, -1.5, -0.5])
     #plt.text(0.5, 0.5, '4', fontsize=20, color='red', transform=ax4.transAxes)
 
-    #'''
-
-    '''
-    for i, p1 in enumerate(params):
-        for j, p2 in enumerate(params):
-            #print "points: ", points
-            if (p1 != p2) and ([j,i] not in points):
-                ax = fig.add_subplot(gs[j-1, i])
-                ax.plot(dat[p1], dat[p2], 'k.')
-                
-                ax.set_xlabel(p1)
-                ax.set_ylabel(p2)
-                points.append([i, j])
-    
-    #'''
     #gs.tight_layout(fig)
-    plt.savefig('compare_parameters_'+fout+'.pdf')
+    plt.savefig('compare_parameters_'+fout+'.png')
     plt.show()
     plt.close()
 
+def lotz_mergers(m20):
+    return -0.14*m20+0.33
+
+def lotz_separation(m20):
+    return  0.14*m20+0.8
+
+def investigate_classification_contamination(cat):
+    cat['t_color'] = np.array([color.rstrip() for color in cat['t_color']])
+
+    true_neg = cat[np.where(cat['correct'] & (cat['probability']<.5))]
+    strongTypeI = cat[np.where((~cat['correct']) & (cat['probability']>.5))]
+    titles1 = ['NE classified as E', 'NE classified as NE']
+
+    true_pos = cat[np.where((cat['correct']) & (cat['probability']>.5))]
+    strongTypeII = cat[np.where((~cat['correct']) & (cat['probability']<.5))]
+    titles2 = ['E classified as NE', 'E classified as E']
+
+    gini_m20_compare(strongTypeI, true_neg, titles1, filename='notEllipticals')
+    gini_m20_compare(strongTypeII, true_pos, titles2, filename='Ellipticals')
+
+def select_balanced_sample(cat):
+    '''
+    NOT FLESHED OUT -- probably won't work
+    '''
+    # I fucking hate topcat.
+    # Select out the sample I want WITHOUT that piece of shit:
+    color = cat['t_color']
+    smooth = cat['t01_smooth_or_features_a01_smooth_debiased']
+
+    balance_cut = np.where((color=="purple") | (color=="yellow") | 
+                           (color=="green") | ((color=="red")&(smooth>=0.68)))
+    balanced = cat[balance_cut]
+
+
+    color = ['purple', 'red', 'green', 'yellow']
+    for c in color:
+        cut = np.where(balanced['t_color']==c)
+        num = len(cat[cut])
+        per = float(len(balanced[cut]))/len(balanced)
+        print num, per
+
+def select_galaxy_classes(cat):
+
+    merger_cut = np.where(cat['G'] > -0.115*cat['M20']+0.384)
+    merger = cat[merger_cut]
+
+    merger_disk_cut = np.where(merger['t_color']=='purple')
+    merger_disk = merger[merger_disk_cut]
+    
+    high_m20_cut = np.where( (merger_disk['M20'] < -1.) & 
+                             (merger_disk['M20'] > -1.5) )
+    high_m20 = merger_disk[high_m20_cut]
+
+
+    elliptical_cut = np.where((cat['G'] < -0.115*cat['M20']+0.384) & 
+                              (cat['G'] > 0.115*cat['M20']+0.769))
+
+    disk_ell_cut = np.where(cat[elliptical_cut]['t_color']=='purple')
+    disk_ell = cat[disk_ell_cut]
+
+    irregular_cut = np.where((cat['G'] > 0.115*cat['M20']+0.697) &
+                          (cat['G'] < 0.115*cat['M20']+0.769) &
+                          (cat['G'] < -0.115*cat['M20']+0.384))
+
+    spiral_cut = np.where((cat['G'] < -0.115*cat['M20']+0.384) &
+                       (cat['G'] < 0.115*cat['M20']+0.697))
+    ell_disk_cut = np.where(cat[spiral_cut]['t_color']=='red')
+    ell_disk = cat[ell_disk_cut]
+    
+    print len(disk_ell), len(ell_disk)
+
+
+def gini_m20_compare(cat1, cat2, titles, outfile):
+    try:
+        cat1['M20']=cat1['M20_1']
+        cat1['G']=cat1['G_1']
+        cat2['M20']=cat2['M20_1']
+        cat2['G']=cat2['G_1']
+    except:
+        pass
+
+    fig = plt.figure(figsize=(20,8))
+
+    x1 = np.arange(-3.5, 1., .1)
+    y1 = lotz_mergers(x1)
+    x2 = np.arange(-3.5, -1.6, .1)
+    y2 = lotz_separation(x2)
+
+    ax1 = fig.add_subplot(131)
+
+    ax1.plot(cat1['M20_2'], cat1['G_2'], 'r.', alpha=.5) 
+    ax1.plot(x1, y1,'k',lw=2, label='Merger Line (Lotz 08)')
+    ax1.plot(x2, y2,'k--',lw=2, label='Morph Line (Lotz 08)')
+    #ax.plot([0,-3.], [.4, .4], 'k--')   
+
+    ax1.set_ylabel('Gini', fontsize=14)
+    ax1.set_xlabel('M20', fontsize=14)
+    ax1.set_title('Ellipt Apers, M20/G bad [Original]')
+    ax1.set_xlim(1., -3.5)
+    ax1.set_ylim(.2, .8)
+
+    ax2 = fig.add_subplot(132)
+
+    ax2.plot(cat1['M20'], cat1['G'], 'r.',  alpha=.5) 
+    ax2.plot(x1, y1,'k',lw=2, label='Merger Line (Lotz 08)')
+    ax2.plot(x2, y2,'k--', lw=2, label='Morph Line (Lotz 08)')
+    #ax2.plot([0,-3.], [.4, .4], 'k--')   
+
+    #ax2.set_ylabel('Gini', fontsize=14)
+    ax2.set_xlabel('M20', fontsize=14)
+    ax2.set_title('Ellipt Apers, M20/G fixed')
+    ax2.set_xlim(1., -3.5)
+    ax2.set_ylim(.2, .8)
+    
+    ax3 = fig.add_subplot(133)
+    ax3.plot(cat2['M20'], cat2['G'], 'r.',  alpha=.5) 
+    ax3.plot(x1, y1,'k',lw=2, label='Merger Line (Lotz 08)')
+    ax3.plot(x2, y2,'k--', lw=2, label='Morph Line (Lotz 08)')
+    #ax3.plot([0,-3.], [.4, .4], 'k--')   
+
+    #ax3.set_ylabel('Gini', fontsize=14)
+    ax3.set_xlabel('M20', fontsize=14)
+    ax3.set_title('Circular Apers, M20/G fixed')
+    ax3.set_xlim(1., -3.5)
+    ax3.set_ylim(.2, .8)
+
+    plt.tight_layout()
+    
+    plt.savefig('G-M20_SDSS.png')
+
+    plt.show()
+    plt.close()
+
+def gini_m20_compare_morphtypes(cat1, cat2):
+    
+    colors = ['purple', 'red', 'green', 'yellow']
+    labels = ['Disks', 'Ellipticals', 'Edge On', 'Mergers']
+    alphas = [.5, .3, .4, .75]
+    i = 1
+    for c,l,a in zip(colors, labels, alphas):
+
+        cut = np.where(cat1['t_color']==c)
+        x1 = np.arange(-3., 0., .1)
+        y1 = lotz_mergers(x1)
+        x2 = np.arange(-3., -1.6, .1)
+        y2 = lotz_separation(x2)
+
+        # plot ZEST's G/M20 plane
+        ax1 = fig.add_subplot(220+i)
+
+        ax1.scatter(cat1['M20'][cut], cat1['G'][cut], 
+                    color=cat1['t_color'][cut], 
+                    marker='^',  alpha=a, label=l)
+
+        ax1.plot(x1, y1,'k',lw=2, label='Merger Line (Lotz 08)')
+        ax1.plot(x2, y2,'k--', lw=2, label='Morph Line (Lotz 08)')
+        ax1.plot([0,-3.], [.4, .4], 'k--')
+
+        ax1.set_ylabel('Gini', fontsize=14)
+        ax1.set_xlabel('M20', fontsize=14)
+        ax1.set_title(l, fontsize=16)
+
+        ax1.set_xlim(0., -3.)
+        ax1.set_ylim(.3, .75)
+
+        i+=1
+
+    fig.tight_layout()
+    plt.savefig('G_M20_18K.png')
+    #ax1.legend(loc='best')
+
+    
 def A_M20_distances(data):
     cuts = np.where((data['oflag']==0) & (data['uflag']==0) & 
                     (data['M2']!=np.inf))
@@ -663,7 +838,45 @@ def A_M20_distances(data):
     bins = np.arange(min(dist), max(dist)+binsize, binsize)
     plt.hist(dist, bins=bins)
     plt.show()
-    #pdb.set_trace()
+
+def Rp_compare(cat1, cat2, xylabels, histlabels, outname):
+    try:
+        cat1['Rp'] = cat1['Rp_1']
+        cat2['Rp'] = cat2['Rp_1']
+    except:
+       pass
+
+    fig = plt.figure(figsize=(8,8))
+
+    ax1 = fig.add_subplot(111)
+    ax1.plot(cat1['Rp_2']*.396, cat2['petrorad_i'], 'r.', 
+             label='Ell Aper; Original cleaning')
+    ax1.plot(cat1['Rp']*.396, cat2['petrorad_i'], 'b.', 
+             label='Ell Aper; better cleaning')
+    ax1.plot(cat2['Rp']*.396, cat2['petrorad_i'], 'y.', 
+             label='Circ Aper; better cleaning')
+    ax1.plot([0,100], [0,100], 'k--',lw=1.5, 
+             label='1-to-1')
+    ax1.set_xlabel('My Petrosian Radii [arcsec]')
+    ax1.set_ylabel('SDSS Petrosian Radius [arcsec]')
+    #ax1.set_title('Petrosian Radius [pixels]'
+    ax1.set_ylim(0,55)
+    ax1.legend(loc='best')
+    
+    '''
+    ax2 = fig.add_subplot(122)
+    ax2.hist(cat1['Rp'], bins=100, normed=True, color='blue', alpha=.5,
+             label=histlabels[0])
+    ax2.hist(cat2['Rp'], bins=100, normed=True, color='red', alpha=.5, 
+             label=histlabels[1])
+    ax2.set_xlabel('Rp [pixels]')
+    ax2.legend(loc='best')
+    #'''
+
+    plt.savefig('Rp_SDSS.png')
+    plt.show()
+    plt.close()
+
 
 def main():
     
@@ -674,97 +887,42 @@ def main():
         help='My catalog name')
     args = parser.parse_args()
 
-    #comparecatalogs()
-    #plotzestcassatamine()
-    #selectnewsample()
-    #plotpetrorad_largesample()
-    #plotconcentration()
-    #testbackground()
-    #plotgini(zestdata, dataset)
-    #plotM20(zestdata, dataset)
-    #analyse_cleaning()
-    #A_M20_distance(dataset)
-    #pdb.set_trace()
 
-    zest = Table.read(args.catalog1)
-    orig = Table.read(args.catalog2, format='ascii.fixed_width')
-    #new = Table.read('testcat_v2_A_M20.dat', format='ascii.fixed_width')
-    #new['M1'] = new['M20']
+    cat1 = Table.read(args.catalog1)
+    cat2 = Table.read(args.catalog2)
+    #cat = cat.filled()
 
+
+    labels=['Elliptical', 'Circular']
+    #labels=['Original', 'New (M20/G fixed)']
+    outtag = 'circularRp'
+
+    #gini_m20_compare(cat1, cat2, titles=labels, 
+    #                 outfile='SDSS_compare_%s'%outtag)
+
+    Rp_compare(cat1, cat2, xylabels=labels, histlabels=labels, 
+               outname='SDSS_compare_%s'%outtag)
+    exit()
+    
+    #compare_parameters(cat, fout='18Ksample')
+
+    f = open('incorrect_gals_2classes.txt', 'w+')
+    prefix = 'scp beck@ramon-1.spa.umn.edu:/data/extragal/beck/output/datacube/'
+    badgals = cat[~cat['correct']]
+    for gal in badgals:
+        f.write(prefix+gal['name'].rstrip()+'.fits sdss_toclean/\n')
+    f.close()
+
+    exit()
 
     #bigz = Table.read('catalogs/ZEST_catalog.fits')
     #colorcode(bigz, outname='catalogs/ZEST_catalog_colors.fits')
-
     #plotM20(zest, orig, 'm20_comp_orig.png')
     #plotM20(zest, new, 'm20_comp_new.png')
     #plotasymmetry(zest, new, 'asym_comp_new.png')
     #plotasymmetry(zest, orig, 'asym_comp_orig.png')
 
-    #pdb.set_trace()
-    # compare Non-minimized M20 with Minimized M20
-    fig = plt.figure(figsize=(10,8))
-    gs = plt.GridSpec(1,1)
 
-    ax = fig.add_subplot(gs[0])
-    ax.plot(orig['M1'], new['M20'], 'k^')
-    ax.set_xlabel('min M20', fontsize=20)
-    ax.set_ylabel('no min M20', fontsize=20)
-    plt.savefig('M20_comp_min&non-min.png')
-    plt.show()
-
-    pdb.set_trace()
-
-    fout = os.path.splitext(args.catalog2)[0].split('_')
-    
-    #compare_catalogs(zest, mine, fout=args.catalog2)
-    #compare_parameters(mine, fout=fout[1]+fout[2])
-   
-    #pdb.set_trace()
 
 if __name__ == '__main__':
     main()
-
-
-'''
-test = np.genfromtxt(r'testgal17_mel_prof_IDL2.dat')
-crpix = test[:,0]
-csb = test[:,1]
-cavgsb = test[:,2]
-
-
-# now we need to find the intersection of u(R)/<u(R)> with 0.2
-f = interp1d(sb/avgsb, apix[1:len(apix)-1], 
-bounds_error=False, assume_sorted=False)
-rpet = f(0.2)  
-
-fc = interp1d(csb/cavgsb, crpix, 
-bounds_error=False, assume_sorted=False) 
-crpet = fc(0.2)
-
-print rpet, crpet
-
-plt.subplot(3,1,1)
-plt.title('Surface Brightness')
-plt.plot(apix[1:len(apix)-1], sb, 'ro', crpix, csb,'ko') # rpix, sb2, 'go',
-#plt.axis([xlims[0], xlims[1], ylims[0], ylims[1]])
-plt.xscale('log')
-
-plt.subplot(3,1,2)
-plt.title('Avg Surface Brightness')
-plt.plot(apix[1:len(apix)-1], avgsb, 'r^', crpix, cavgsb, 'k^') #rpix, avgsb1, 'r^', 
-#plt.axis([xlims[0], xlims[1], ylims[0], ylims[1]])        
-plt.xscale('log')
-
-plt.subplot(3,1,3)
-plt.title('SB/Avg_SB')
-plt.plot(apix[1:len(apix)-1], sb/avgsb, 'rs', 
-crpix, csb/cavgsb, 'ks', [1,250],[.2, .2], 'k--', 
-[crpet, crpet], [0,1.2], 'k--', [rpet, rpet], [0, 1.2], 'r--')
-#plt.axis([xlims[0], xlims[1], 0., 1.1])        
-plt.xscale('log')
-
-plt.savefig('testgal17.png')
-plt.show()
-
-pdb.set_trace()
-#'''

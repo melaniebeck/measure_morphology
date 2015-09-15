@@ -44,7 +44,10 @@ class Galaxy(object):
         self.cat = flags[0]
         self.oflag, self.uflag, self.bflag = flags[1], flags[2], flags[3]
         self.name = os.path.basename(os.path.splitext(filename)[0])
-  
+        # The last index will change when I'm running on the regular SDSS sample
+        self.objid = np.int64(os.path.splitext(\
+                    os.path.basename(filename))[0].split('_')[3])
+
         # SExtractor attributes        
         self.e = cat['ELONGATION']
         self.x, self.y = cat['X_IMAGE'], cat['Y_IMAGE']
@@ -61,14 +64,15 @@ class Galaxy(object):
         self.elipt = cat['ELLIPTICITY'] 
         
         if not np.isnan(self.Rp):
-            #self.A, self.Ax, self.Ay = self.get_asymmetry(image)
-            #self.r20, self.r80, self.C = self.get_concentration(image)
-            #self.G = self.get_gini1(image)
+            self.A, self.Ax, self.Ay = self.get_asymmetry(image)
+            self.r20, self.r80, self.C = self.get_concentration(image)
+            self.G = self.get_gini1(image)
+            self.G2 = self.get_gini2(image)
             self.M20, self.Mx, self.My = self.get_m20_1(image)
         else:
-            #self.A, self.Ax, self.Ay = np.nan, self.x, self.y
-            #self.r20, self.r80, self.C = np.nan, np.nan, np.nan
-            #self.G = np.nan 
+            self.A, self.Ax, self.Ay = np.nan, self.x, self.y
+            self.r20, self.r80, self.C = np.nan, np.nan, np.nan
+            self.G1, self.G2 = np.nan, np.nan 
             self.M20, self.Mx, self.My = np.nan, self.x, self.y
                 
     def __enter__(self):
@@ -108,8 +112,13 @@ class Galaxy(object):
         b = a/self.e
         position = [self.x, self.y]
 
-        annuli = np.hstack([EllipticalAnnulus(position, radius, a[idx+1], 
-                                              b[idx], self.theta) \
+        #annuli = np.hstack([EllipticalAnnulus(position, a[idx], a[idx+1], 
+        #                                      b[idx], self.theta) \
+        #                    for idx, radius in enumerate(a[:-1])])
+
+        # test a small sample with CircularAnnulus to see if we get close
+        # to SDSS Rp
+        annuli = np.hstack([CircularAnnulus(position, a[idx], a[idx+1]) \
                             for idx, radius in enumerate(a[:-1])])
         
         counts = np.hstack([aperture_photometry(image, an, method='exact')\
@@ -117,20 +126,23 @@ class Galaxy(object):
         areas = [an.area() for an in annuli]
 
         sb_counts = np.array([c+counts[i+1] for i, c in enumerate(counts[:-1])])
-        avgsb_counts = np.array([np.sum(counts[0:i+1]) for \
-                                 i, c in enumerate(counts[:-1])])
+        avgsb_counts = np.cumsum(counts)[:-1]
 
         sb_areas = np.array([ar+areas[i+1] for i, ar in enumerate(areas[:-1])])
-        avgsb_areas = np.array([np.sum(areas[0:i+1]) for \
-                                i, ar in enumerate(areas[:-1])])
+        avgsb_areas = np.cumsum(areas)[:-1]
 
-        sb = self._sb = sb_counts/sb_areas   
+        # Local SBs averaged over an annulus at r (around r in log space)
+        sb = self._sb = sb_counts/sb_areas
+   
+        # Mean SBs within r
         avgsb = self._avgsb = avgsb_counts/avgsb_areas
+
+        # Petrosian Ratio -- find rp at which this ratio = 0.2
         self._ratio = sb/avgsb
         
         # need to test whether sb continues to decrease or if it's contaminated
         # by nearby light from other sources that wasn't fully cleaned
-        # To do this: test for monotonicity of sb/avgsb beyond self.a 
+        # To do this: test for monotonicity of sb/<sb> beyond self.a 
         # (as given by SExtractor) 
         
         sb_avgsb = sb/avgsb
@@ -166,11 +178,6 @@ class Galaxy(object):
         self._rads = a[1:-1]
         radii, ratios = utils.get_interp(self._rads, self._sb/self._avgsb)
         self._interprads, self._interpvals = radii, ratios
-
-        #params=self.__dict__
-        #galaxy_plot.petro_SB2(params)
-        #galaxy_plot.petro_radius2(params, image)
-        #pdb.set_trace()
 
         if not np.any(np.isnan(ratios)):
             rp = utils.get_intersect(ratios, 0.2, radii, mono='dec')
@@ -365,7 +372,7 @@ class Galaxy(object):
         cum_sum = np.array([np.sum(counts[0:idx]) \
                             for idx in range(1,len(counts)+1)])
 
-        # Calculate the total flux in a Circular aperture of 1.5*rpet
+        # Calculate the total flux in a Circular aperture of 1*rpet
         tot_aper = CircularAperture((self.Ax, self.Ay), self.Rp)
         tot_flux = float(aperture_photometry(image, tot_aper, 
                                              method='center')['aperture_sum'])
@@ -398,14 +405,20 @@ class Galaxy(object):
         xbar = np.mean(galpix_sorted)
         n = len(galpix_sorted)
         factor = 1/(xbar*n*(n-1))
-        gsum = [2*i-n-1 for i, p in enumerate(galpix_sorted)]
+
+        gsum = []
+        for i in range(1,n+1):
+            gsum.append(2*i-n-1)
+        
         gini = factor*np.dot(gsum, galpix_sorted)
+
         return gini 
 
     def get_gini2(self, image):
         print "calculating Gini(2)..."
 
         # Mask 2: galaxy pixels defined as those with flux >= SB at 1 petro rad
+        # This method is based on Lotz 2004
         mask2 = utils.get_SB_Mask(self.Rp, self.Rp_SB, image, self.name)*image
         if isinstance(mask2, int):
             return np.nan
@@ -415,7 +428,11 @@ class Galaxy(object):
         xbar = np.mean(galpix_sorted)
         n = len(galpix_sorted)
         factor = 1/(xbar*n*(n-1))
-        gsum = [2*i-n-1 for i, p in enumerate(galpix_sorted)]
+
+        gsum = []
+        for i in range(1,n+1):
+            gsum.append(2*i-n-1)
+        
         gini = factor*np.dot(gsum, galpix_sorted)
 
         return gini
@@ -460,67 +477,85 @@ class Galaxy(object):
         
         center = [image.shape[0]/2., image.shape[1]/2.]
         galcenter = np.array([self.x, self.y])
-        #galcenter = np.array([self.Ax, self.Ay])
 
-        mxrange = [round(center[0]-0.5*self.Rp), 
-                   round(center[0]+0.5*self.Rp)]
-        myrange = [round(center[1]-0.5*self.Rp), 
-                   round(center[1]+0.5*self.Rp)]
+        # create .5*Rp 'box' centered on img center in which to calculate
+        # Mtot at each pixel
+        mxrange = [int(round(center[0]-0.5*self.Rp)), 
+                   int(round(center[0]+0.5*self.Rp))]
 
-        x, y = np.ogrid[mxrange[0]:mxrange[1], myrange[0]:myrange[1]]
+        myrange = [int(round(center[1]-0.5*self.Rp)), 
+                   int(round(center[1]+0.5*self.Rp))]
 
-        # Create a "distance grid" - each element's value is it's distance
-        # from the center of the image for the entire image
+        # create grid which overlaps entire image
         x2, y2 = np.ogrid[:image.shape[0], :image.shape[1]]      
-        dist_grid = (center[0] - x2)**2 + (center[1] - y2)**2
 
-        # create aperture at center of galaxy (mask)
+        # create 1Rp aperture at center of galaxy (mask)
         gal_aper = utils.EllipticalAperture(center, self.Rp, self.Rp/self.e,
                                             self.theta, image)
         mask1 = gal_aper.aper*image
+
         self.stn = self.get_stn(mask1)
-        #print self.stn
-        mtots = []
-        for i in x:
-            for j in y.transpose():
-                ind1 = int(math.floor(center[0]-i))
-                ind2 = int(math.floor(center[1]-j))
-                indices0 = range(ind1, ind1 + dist_grid.shape[0])
-                indices1 = range(ind2, ind2 + dist_grid.shape[1])
-                shift_grid = dist_grid.take(indices0, axis=0, mode='wrap')\
-                                      .take(indices1, axis=1, mode='wrap')
+
+        # create a 2d array for mtot values
+        mtots = np.zeros_like(image, dtype='float32')
+
+        for i in range(mxrange[0], mxrange[1]):
+            for j in range(myrange[0], myrange[1]):
+
+                # for each pixel in the box, create a distance mapping --
+                # distance of each pixel from current "center"
+                dist_grid = (i - x2)**2 + (j - y2)**2
+    
+                # calculate Mtot
                 try:
-                    mtots.append(np.sum(mask1*shift_grid))
+                    mtots[i,j] = np.sum(mask1*dist_grid)
                 except:
                     pdb.set_trace()
-        Mtot = np.min(mtots)
-        mtot = np.array(mtots).reshape([len(x), len(y.transpose())])
-        xc = x[np.where(mtot == Mtot)[0]][0]
-        yc = y.transpose()[np.where(mtot == Mtot)[1]][0]
+
+        # set all the zeros to nans so that we can find the true min
+        mtots[np.where(mtots == 0)] = np.nan
+
+        # find the minimum mtot value
+        Mtot = np.nanmin(mtots)
+
+        # find the coordinates of that minimum
+        xc, yc = np.where(mtots == Mtot)
+
+        # re-create the distance grid corresponding to those coordinates
+        grid = (xc - x2)**2 + (yc - y2)**2
         
-        indices0 = range(center[0]-xc,center[0]-xc+dist_grid.shape[0])
-        indices1 = range(center[0]-yc,center[0]-yc+dist_grid.shape[1])
-        grid = dist_grid.take(indices0, axis=0, mode='wrap')\
-                        .take(indices1, axis=1, mode='wrap')
+        # re-create a 1*Rp aperture centered on those coordinates
+        m20_aper = utils.EllipticalAperture((xc, yc), self.Rp, self.Rp/self.e, 
+                                            self.theta, image)
         
-        m20_aper = utils.EllipticalAperture((xc[0], yc[0]), self.Rp, 
-                                            self.Rp/self.e, self.theta, image)
+        # isolate the pixel flux within that aperture
         galpix = m20_aper.aper*image
         
-        gsort = sorted(np.abs(galpix.flatten()), reverse=True)
-        galpix_sorted = np.array(gsort)
-        grid_sorted = np.array([i for j,i in sorted(zip(gsort, grid.flatten()),
-                                                    reverse=True)])
-        pdb.set_trace()
-        ftot20 = 0.2*np.sum(galpix_sorted)
-        fcumsum = np.cumsum(galpix_sorted)
-        m20_pix = np.where(fcumsum< ftot20)[0]
+        sortbyflux = sorted(zip(galpix.flatten(), grid.flatten()), reverse=True)
+        sortedbyflux = [list(thing) for thing in zip(*sortbyflux)]
+        sorted_galpix = np.array(sortedbyflux[0])
+        sorted_gridpix = np.array(sortedbyflux[1])
+
+        # 20% of the total galaxy flux ( .2*f_tot )
+        ftot20 = 0.2*np.sum(sorted_galpix)
+
+        # cumulative sum of the galaxy flux ( sum of f_i )
+        fcumsum = np.cumsum(sorted_galpix)
+
+        # Determine location where the cumulative sum is less than .2*f_tot
+        m20_pix = np.where(fcumsum < ftot20)[0]
+
         if len(m20_pix) != 0:
-            m20_galpix = galpix_sorted[m20_pix]
-            m20_distpix = grid_sorted[m20_pix]
-            M20 = np.log10(np.sum(m20_galpix*m20_distpix)/Mtot) 
+            
+            m20_galpix = sorted_galpix[m20_pix]
+            m20_distpix = sorted_gridpix[m20_pix]
+
+            M20 = np.log10(np.sum(m20_galpix*m20_distpix)/Mtot)
+
             self._Mlevel1 = np.min(m20_galpix)
             return M20, xc[0], yc[0]
+
+        # if NO pixels satisfy the above condition, set M to NAN
         else:
             self._Mlevel1 = np.nan
             return np.nan, self.x, self.y
@@ -595,11 +630,10 @@ class Galaxy(object):
             del the_dict[key]
 
         if init:
-            #pdb.set_trace()
-            names = ['name', 'ra', 'dec',
+            names = ['name', 'objid', 'ra', 'dec',
                      'e', 'x', 'y', 'a', 'b', 'theta', 'elipt', 'kron', 
-                     'Rp', 'Rpflag', 'Rp_SB', 'r20', 'r80',  'A', 'G', 'C',
-                     'M20', 'Ax', 'Ay', 'Mx', 'My', 'stn',
+                     'Rp', 'Rpflag', 'Rp_SB', 'r20', 'r80',  'A', 'G','G2',
+                     'C', 'M20', 'Ax', 'Ay', 'Mx', 'My', 'stn',
                      'med', 'rms', 'cat', 'oflag', 'uflag', 'bflag']
             dtypes = []
             for n in names:
@@ -607,6 +641,8 @@ class Galaxy(object):
                     dtypes.append('S80')
                 elif n in ['cat', 'oflag', 'uflag', 'Rpflag','bflag']:
                     dtypes.append('i')
+                elif n in ['objid']:
+                    dtypes.append('int64')
                 else: 
                     dtypes.append('f')
             t = Table(names=names, dtype=dtypes)
@@ -652,9 +688,9 @@ def main():
         filename = args.outdir+'f_'+basename
 
         #if not os.path.isfile(filename):
-        print "File not found! Running SExtractor before proceeding."
+        #print "File not found! Running SExtractor before proceeding."
         print "Cleaning ", os.path.basename(f)
-        flags = clean.clean_frame(f, args.outdir)
+        flags = clean.clean_frame(f, args.outdir, sep=4., survey='SDSS')
         
         # check to see if SExtractor failed
         if np.any(np.array(flags)-9 < 0):
@@ -680,7 +716,8 @@ def main():
             print "SExtractor failed on "+basename
 
     #t.write('bigsample_mycat_flags.dat', format='ascii.fixed_width')
-    print "Parameter catalog complete.\nSaving catalog to file..."
+    print "Morphological parameter catalog complete.\n"
+    #Saving catalog to file..."
     #t.write(args.output, format='ascii')
     exit()  
 

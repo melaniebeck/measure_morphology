@@ -11,6 +11,7 @@ import pdb
 def single_SE(image, outstr, outdir='', params={}, outstr2=0):
     flag = True
     basename = os.path.basename(os.path.splitext(image)[0])
+
     if isinstance(outstr2, int):
         cat = '%s%s_%s_cat.fits' %(outdir, basename, outstr)
         seg = '%s%s_%s_seg.fits' %(outdir, basename, outstr)
@@ -23,6 +24,7 @@ def single_SE(image, outstr, outdir='', params={}, outstr2=0):
     params['-checkimage_name'] = seg
 
     args = ['/usr/bin/sex', image]
+
     for key, value in params.iteritems():
         args.append(key)
         args.append(value)
@@ -37,7 +39,8 @@ def single_SE(image, outstr, outdir='', params={}, outstr2=0):
 
     return flag
 
-def run_SE(image, section, outdir='', outstr2=0):
+def run_SE(image, section, cfg_filename='se_params_COSMOS.cfg',
+           outdir='', outstr2=0):
     ''' Run SExtractor on COSMOS/ZEST cutouts using the parameters
         in se_param.cfg
          
@@ -52,7 +55,7 @@ def run_SE(image, section, outdir='', outstr2=0):
     '''
 
     config = ConfigParser.ConfigParser()
-    config.read('se_params.cfg')
+    config.read(cfg_filename)
     options = config.options(section)
     
     params = {}

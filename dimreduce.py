@@ -13,7 +13,7 @@ from sklearn.lda import LDA
 from astropy.table import Table, Column
 from time import time
 import argparse
-
+import matplotlib.gridspec as gridspec
 from astroML.utils import split_samples
 from astroML.utils import completeness_contamination
 
@@ -47,50 +47,134 @@ def inner_ninety(data, targets):
     targets = targets[cut[0]]
     return dats, targets
 
-def plot_dimreduce_3D(X, Xcol, y, ycol, method, n, t, err, sample):
+    
+def reassign_colors(label, color):
+    for i, l in enumerate(label):
+        if l == 1:
+            color[i] = 'yellow'
+        elif l == 2:
+            color[i] = 'red'
+        elif l == 3:
+            color[i] = 'green'
+        elif l == 4:
+            color[i] = 'purple' 
+    return (label, color)
 
-    fig = plt.figure(figsize=(20,12))
-    plt.suptitle(method+" with training sample of %i points" 
-                 %len(X), fontsize=14)
+def simplify_classlabels(targets): 
+    #pdb.set_trace()
+    labels = [eval(i) for i in targets[:,0]]  
+    labels = np.array(labels, dtype='int')
+    simple_targets  = reassign_colors(labels, targets[:,1])
+    return np.dstack(simple_targets)[0]
+
+def classification_loss(predictions, truevals):
+    predicted = np.atleast_2d(predictions)
+    true = np.atleast_2d(truevals)
+
+    loss_function = np.array((predicted == true))
+
+def save_dimreduce(X, Y, y, meta, filename):
+
+    X = Table(X)
+    
+    X['LLE_X'] = Y[:,0]
+    X['LLE_Y'] = Y[:,1]
+    X['LLE_Z'] = Y[:,2]
+    X['target'] = y[:,0]
+    X['t_color'] = y[:,1]
+
+    X.meta = meta
+    X.write('dimreduce/data/'+filename+'_%iN.fits'%meta['N'], overwrite=True)
+
+def read_dimreduce(dataname, LLEcols, targcols):
+    # read in a previous one that I saved. 
+    data = Table.read(dataname)
+    data = data.filled()
+    LLE = np.dstack(np.array([data[k] for k in LLEcols]))[0]
+    #targets = np.dstack((data[targcols[0]], data[targcols[1]]))[0]
+    targets = data[targcols[0]]
+    return data, LLE, targets
+
+def open_previous_LLE(filename, directory, columns):
+   
+    X1, Y1 = read_dimreduce('%s%s_train.fits'%(directory,filename), columns)
+    X2, Y2 = read_dimreduce('%s%s_test.fits'%(directory,filename), columns)
+
+    return (X1, Y1), (X2, Y2)
+
+
+def plot_dimreduce_3D(X, Xcol, y, ycol, method, n, t, err, sample, two=False):
+
+    fig = plt.figure(figsize=(15,10))
+    #plt.suptitle(method+" with training sample of %i points" 
+    #             %len(X), fontsize=20)
+    #plt.suptitle("LLE with training sample of %i points"%n, fontsize=24)
 
     #percentiles = np.percentile(X, (0.5, 95.))
     #cut = np.where((X > percentiles[0]) & (X < percentiles[1]))
     #X90 = X[cut]
     #Xcol90 = Xcol[cut]
-    
     #Xcol = Xcol.tolist()
     #Xcol = [col.strip() for col in Xcol]
-    
-    ax = fig.add_subplot(111, projection='3d') 
-    ax.scatter(X[:, 0], X[:, 1],  X[:, 2], color=Xcol, 
-               marker='.', cmap=plt.cm.Spectral, alpha =0.5)
-    
-    if n:
-        plt.title("%i neighbors (%.2g s, %.5g err)" %(n, t, err))
-    ax.set_xlim(min(X[:,0]), max(X[:,0]))
-    ax.set_ylim(min(X[:,1]), max(X[:,1]))
-    ax.set_zlim(min(X[:,2]), max(X[:,2]))
-    ax.set_xlabel('X Label')
-    ax.set_ylabel('Y Label')
-    ax.set_zlabel('Z Label')
+
+    if not two:
+        ax = fig.add_subplot(111, projection='3d')
+        ax.scatter(X[:, 0], X[:, 1],  X[:, 2], color=Xcol, 
+                   marker='^', cmap=plt.cm.Spectral, alpha=0.65)
+        #ax.set_title('Subsample of ~6100 galaxies in LLE space', fontsize=20)
+        #ax.set_xticklabels([])
+        #ax.set_yticklabels([])
+        #ax.set_zticklabels([])
+        plt.text(0, 0, 'Ellipticals', fontsize=16, color='red')
+        ax.grid(True)
+
+        plt.axis('tight')
+        plt.tight_layout()
+        plt.savefig('%s.png'%sample)
+
+    else:
+        ax = fig.add_subplot(121, projection='3d') 
+        ax.scatter(X[:, 0], X[:, 1],  X[:, 2], color=Xcol, 
+                   marker='.', cmap=plt.cm.Spectral, alpha=0.5)
+        #ax.set_title('Subsample of ~6100 galaxies in LLE space', fontsize=20)
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        ax.set_zticklabels([])
+        ax.grid(True)
+
+        ax = fig.add_subplot(122, projection='3d') 
+        ax.scatter(y[:, 0], y[:, 1], y[:, 2], color=ycol, 
+                   marker='^', cmap=plt.cm.Spectral, s=20)
+        #ax.set_title('1330 galaxies re-classified via PANOPTES', fontsize=20)
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        ax.set_zticklabels([])
+        ax.grid(True)
+
+        plt.axis('tight')
+        plt.tight_layout()
+        plt.savefig('%s_2figs.png'%sample)
+
+    plt.show()
+
+    #textstr = '$\mu=%.2f$\n$\sigma=%.4f$'%(stats[0], stats[1])
+    #ax.text(0.5, 0.5,'matplotlib', horizontalalignment='center',
+    #        verticalalignment='center',
+    #        transform=ax.transAxes)
+    #ax.text(0.05, 0.95, 'ellipticals', color='red', 
+    #        horizontalalignment='center', verticalalignment='center',
+    #        transform=ax.transAxes, fontsize=14)
+    #ax.text(0.04, 0.95, 'edge on', color='green',
+    #        horizontalalignment='center', verticalalignment='center',
+    #        transform=ax.transAxes, fontsize=14)
+    #ax.text(0.03, 0.95, 'disks', color='purple',
+    #        horizontalalignment='center', verticalalignment='center',
+    #        transform=ax.transAxes, fontsize=14)
+    #props = dict(boxstyle='square', facecolor='white', alpha=0.5)
+    #ax.text(0.05, 0.95, textstr, transform=ax.transAxes, fontsize=14,
+    #        verticalalignment='top', bbox=props)
     #ax.xaxis.set_major_formatter(NullFormatter())
 
-    '''
-    ax = fig.add_subplot(122, projection='3d') 
-    ax.scatter(y[:, 0], y[:, 1], y[:, 2], color=ycol, 
-               marker='.', cmap=plt.cm.Spectral)
-    plt.title('Test sample of %i points' %len(y), fontsize=14)
-    ax.set_xlim(min(y[:,0]), max(y[:,0]))
-    ax.set_ylim(min(y[:,1]), max(y[:,1]))
-    ax.set_zlim(min(y[:,2]), max(y[:,2]))
-    ax.set_xlabel('X Label')
-    ax.set_ylabel('Y Label')
-    ax.set_zlabel('Z Label')
-    plt.axis('tight')
-    plt.tight_layout()
-    '''
-    plt.savefig(method+'_%iN_%s.png'%(n,sample))
-    plt.show()
 
 def plot_dimreduce(data, color, method, n, sample, axis=0):
     xlab, ylab, lab, X, Y = set_axes(axis)
@@ -217,27 +301,110 @@ def plot_LDA_3D(data, targets, classes, colors, sample):
     plt.show()
     plt.close()
 
-def classification_loss(predictions, truevals):
-    predicted = np.atleast_2d(predictions)
-    true = np.atleast_2d(truevals)
+def cut_out_mixedup_region(dat, Y_train):
 
-    loss_function = np.array((predicted == true))
-    
-    
+    cut = np.where((Y_train[:,0] > -0.012 ) & (Y_train[:,0] < -0.005) &
+                   (Y_train[:,1] < 0.009 ) & (Y_train[:,1] > -0.009) &
+                   (Y_train[:,2] < 0.01) & (Y_train[:,2] > -0.03) )
+    sub = dat[cut]
+
+    newdat = dat
+    for idx in cut[0]:
+        newdat.remove_row(idx)
+        print idx, len(newdat)
     pdb.set_trace()
+    for idx, thing in enumerate(dat):
+        pdb.set_trace()
+        if idx in cut[0]:
+            print idx, cut[0][idx]
 
-def save_dimreduce(data, meta):
-    table = Table(data)
-    table.meta = meta
-    table.write('dimreduce/dimreduce_data/%s_%i_%s.fits'
-                %(meta['method'], meta['N'], meta['sample']))
+    pdb.set_trace()
+    unique, idx, counts =np.unique(sub['dr7objid'], 
+                                   return_index=True, 
+                                   return_counts=True)
+    subY = Y_train[cut]
+    suby = y_train[cut]
+    subxc = xc_train[cut]
+    subcol = np.array(color_train)[cut]
 
-def read_dimreduce(dataname):
-    # read in a previous one that I saved. 
-    data = Table.read(dataname)
-    dat = np.dstack(np.array([data[k] for k in data.columns]))[0]
-    return dat, data.meta
+    #subsample = subsample[idx]
+            
+    subsample = sub[idx]
+    subsample = Table(subsample)
+    subsample.write('panoptes_to_test.fits', overwrite=True)
+    
+    f = open('expert_list_2.txt', 'w+')
+    f.write('# dr7objid, imgname \n')
+    for thing in subsample:
+        f.write('%i,%s\n'%(thing['dr7objid'], thing['image_url']))
+    f.close()
 
+            
+    # match with those that actually got re-classified
+    reclass = Table.read('panoptes_run2_classifications_mergers_final.fits')
+    matches = []
+    for fuck in reclass:
+        matches.append(np.where(fuck['dr7objid']==sub['dr7objid'])[0])
+        matched = [m[0] for m in matches]
+        
+        sub_subY = subY[matched]
+        
+        panclass = reclass['panclass']
+        sub_subcol = []
+        for p in panclass:
+            if p == 1.0:
+                sub_subcol.append('yellow')
+            elif p == 2.0:
+                sub_subcol.append('red')
+            elif p == 3.0:
+                sub_subcol.append('purple')
+            elif p == 4.0:
+                sub_subcol.append('purple')
+                
+    # plot subsection that I selected (~6100 gals)
+    # and those that got reclassified
+    plot_dimreduce_3D(subY, subcol, 
+                      sub_subY, sub_subcol, 
+                      method, len(Y_train), 0.0, 0.0, sample)
+
+def QC_plots(dat):
+
+    fig = plt.figure()
+    gs1 = gridspec.GridSpec(1,2)
+    
+    #fig.suptitle('"Direct" sample used in LLE (%i objs)'%len(dat), 
+    #             fontsize=20)
+    
+    ax1 = fig.add_subplot(gs1[0])
+    ax1.plot(dat['REDSHIFT'], dat['PETROMAG_R'], 'k.')
+    ax1.set_ylabel('Apparent Magnitude [r-band]', fontsize=16)
+    ax1.set_xlabel('z', fontsize=16)
+    ax1.set_ylim(max(dat['PETROMAG_R']), min(dat['PETROMAG_R']))
+    
+    ax2 = fig.add_subplot(gs1[1], sharey=ax1)
+    ax2.plot(dat['Rp']*0.396, dat['PETROMAG_R'], 'k.')
+    ax2.set_xlabel('Petrosian Radius [arc sec]', fontsize=16)
+    #ax2.set_ylabel('PETROMAG_R')
+    
+    gs1.tight_layout(fig, rect=[0, 0, 1, 0.95])
+    plt.savefig('QC_directbig_arc.png')
+    #plt.show()
+    #'''
+
+def replace_panoptes(data):
+    # replace original GZ classifications with those from PANOPTES
+    count=0
+    panoptes = Table.read('panoptes_run2_classifications_mergers_final.fits')
+    for p in panoptes:
+        obj = np.where(data['dr7objid']==p['dr7objid'])
+        if obj[0]:
+            count+=1
+        data['zclass'][obj] = p['panclass']
+        
+    pdb.set_trace()
+    data.write('zoo2_directbig_MAcut_panoptesclass.fits', overwrite=True)
+    #pdb.set_trace()
+        
 def main():
     
     parser = argparse.ArgumentParser(description=
@@ -253,10 +420,10 @@ def main():
     #testing_sample = dat[10001:20000]
     #zkeys = ['cc', 'aa', 'm20', 'gg']
 
-    thing = string.split(os.path.splitext(args.catalog)[0], '_')
-    sample=thing[1]
+    base = os.path.basename(args.catalog)
+    filename = os.path.splitext(base)[0]
 
-    dat = Table.read(args.catalog)    
+    dat = Table.read(args.catalog)
     mkeys = ['elipt', 'C', 'A_1a', 'G', 'M20']#
 
     #dat.remove_column('color')
@@ -270,10 +437,10 @@ def main():
     #dat = prep_catalog.adjust_asym(dat, mkeys[2])
     #train, traincols, targets = prep_catalog.whiten_data(dat, mkeys)
 
-    n_neighbors = [7,10,12,15,20]
-    #n_neighbors = [10]
+    n_neighbors = [10,12,15,20]
+    #n_neighbors = [7]
     n_components = 3
-    
+
     for i, n_neigh in enumerate(n_neighbors):
         
         if args.alg in ['MLLE', 'LLE', 'LTSA', 'HLLE']:
@@ -285,91 +452,41 @@ def main():
                 method = 'ltsa'
             elif args.alg == 'HLLE':
                 method = 'hessian'
+                           
+            #replace_panoptes(dat)
+            #pdb.set_trace()
+            #sample = 'directbig_panoptes'
+
+            X, y = prep_catalog.whiten_data(dat, mkeys)
+
+            (dat1, dat2),(thing1,thing2) = split_samples(dat, dat,[0.75, 0.35], 
+                                                       random_state=0)
             
-            directory = 'dimreduce/dimreduce_data/'
-            method = 'modified'
-            sample = 'directbig'
-            dat = Table.read('zoo2_'+sample+'_MAcut.fits')
-            mkeys = ['elipt', 'C', 'A_1a', 'G', 'M20']#
-
-            Y_train, meta_train = read_dimreduce('%s%s_%s_%s_train.fits'
-                                        %(directory, method, n_neigh, sample))
-            Y_test, meta_test = read_dimreduce('%s%s_%s_%s_test.fits'
-                                        %(directory, method, n_neigh, sample))
-
-                                            
-            X, Xc, y = prep_catalog.whiten_data(dat, mkeys)
-
-            (Xt1, Xt2), (shit, shit) = split_samples(dat, Xc, 
-                                            [0.75, 0.35], random_state=0 )
-
-            (X_train, X_test), (xc_train, xc_test) = split_samples(X, Xc, 
-                                                [0.75, 0.35], random_state=0)
             (X_train, X_test), (y_train, y_test) = split_samples(X, y, 
                                                 [0.75, 0.35], random_state=0)
 
-            cut = np.where((Y_train[:,0] > -0.012 ) & (Y_train[:,0] < -0.005)&
-                           (Y_train[:,1] < 0.009 ) & (Y_train[:,1] > -0.009) &
-                           (Y_train[:,2] < 0.01) & (Y_train[:,2] > -0.03) )
-            #print len(cut[0])
-            sub = Xt1[cut]
+            y_train = simplify_classlabels(y_train)
+            y_test = simplify_classlabels(y_test)
 
-            unique, idx, counts =np.unique(sub['dr7objid'], 
-                                           return_index=True, 
-                                           return_counts=True)
+            #filename = 'modified_7_directbig_new'
 
-            zeros = []
-            for u in unique:
-                if (u % 100) == 0:
-                    zeros.append(u)
+            X_train = X
+            y_train = simplify_classlabels(y)
 
-            #subsample = subsample[idx]
+            #'''
+            #sample ='direct_zcut'
 
-            subsample = sub[idx]
-            subsample = Table(subsample)
-            subsample.write('panoptes_to_test.fits', overwrite=True)
+            #Y_train, Y_test = open_previous_LLE(filename)
 
-            pdb.set_trace()
+            #cut = np.where(X1['REDSHIFT'] <= 0.05)
+            #X1_cut = X1[cut]
+            #QC_plots(X1_cut)
+            #Y_train = np.array(Y_train)[cut]
+            #col_train = np.array(col_train)[cut]
+            #X = Table(X)
+            #cut_out_mixedup_region(X, np.array(Y_train))
 
-            f = open('expert_list_2.txt', 'w+')
-            f.write('# dr7objid, imgname \n')
-            for thing in subsample:
-                f.write('%i,%s\n'%(thing['dr7objid'], thing['image_url']))
-            f.close()
-            
-            
-            y_train = y_train.astype(int)
-            y_test = y_test.astype(int)
-            
-            color_train, color_test = [], []
-            for color in xc_train:
-                if color in ['red', 'lightsalmon', 'darkred']:
-                    color_train.append('red')
-                elif color in ['darkgreen', 'lightgreen', 'lightseagreen']:
-                    color_train.append('green')
-                elif color in ['indigo', 'darkviolet', 'plum']:
-                    color_train.append('purple')
-                elif color == 'yellow':
-                    color_train.append('yellow')
-
-            for color in xc_test:
-                if color in ['red', 'lightsalmon', 'darkred']:
-                    color_test.append('red')
-                elif color in ['darkgreen', 'lightgreen', 'lightseagrean']:
-                    color_test.append('green')
-                elif color in ['indigo', 'darkviolet', 'plum']:
-                    color_test.append('purple')
-                elif color == 'yellow':
-                    color_test.append('yellow') 
-               
-            # plot in 3D
-            plot_dimreduce_3D(Y_train[0:10000], color_train[0:10000], 
-                              Y_train, color_train, 
-                              method, n_neigh, 0.0, 0.0, sample)
-            
-            #pdb.set_trace()
-
-            '''
+            #'''
             print "performing "+method+" LLE with",n_neigh,\
                 "nearest neighbors"
             print "on training sample of",len(X_train),"objects"
@@ -379,69 +496,23 @@ def main():
             error = A.fit(X_train).reconstruction_error_
             
             Y_train = A.fit_transform(X_train)
-            Y_test = A.transform(X_test)
+            Y_test = A.transform(X_train)
             t1 = time()
+            #'''        
 
-            try:
-                metadata = {'method':method, 'N':n_neigh, 'd':n_components, 
-                    'error':error, 'time':t1-t0, 'sample':sample+'_train'}
-                save_dimreduce(Y_train, metadata)
-                metadata = {'method':method, 'N':n_neigh, 'd':n_components, 
-                    'error':error, 'time':t1-t0, 'sample':sample+'_test'}
-                save_dimreduce(Y_test, metadata)
-            except: 
-                pdb.set_trace()
-            #'''
+            metadata = {'method':method, 'N':n_neigh, 'd':n_components, 
+                        'error':error, 'time':t1-t0, 'sample':filename+'_total'}
+            save_dimreduce(dat, Y_train, y_train, metadata, filename+'_total')
+
+            #metadata = {'method':method, 'N':n_neigh, 'd':n_components, 
+            #            'error':error, 'time':t1-t0, 'sample':filename+'_test'}
+            #save_dimreduce(X2, Y_test, y_test, metadata, filename+'_test')
 
             # plot in 3D
-            #plot_dimreduce_3D(Y_train, xc_train, Y_train, xc_train, method, 
-            #                  n_neigh, t1-t0, error, sample)
-            '''
-            # Classify
-            #------------------------------------------
-            
-            clf = LDA()
-            clf.fit(Y_train, y_train)
-            y_pred = clf.predict(Y_test)
-            
-            matchesLDA = (y_pred == y_test)
-            print np.sum(matchesLDA)
+            plot_dimreduce_3D(Y_train, y_train[:,1], Y_test, y_test[:,1], 
+                              method, n_neigh, error, t1-t0, filename, two=False)
 
-            pdb.set_trace()
-
-            #------------------------------------------
-
-            from sklearn.neighbors import KNeighborsClassifier
-            knc = KNeighborsClassifier(5)
-            knc.fit(Y_train, y_train)
-            y_pred = knc.predict(Y_test)
-
-            matchesKNN = (y_pred == y_test)
-            print np.sum(matchesKNN)
-
-            pdb.set_trace()
-            #------------------------------------------
-
-            from astroML.classification import GMMBayes
-            gmmb = GMMBayes(9)
-            gmmb.fit(Y_train, y_train)
-            y_pred = gmmb.predict(Y_test)
-
-            matchesGMMB = (y_pred == y_test)
-            print np.sum(matchesGMMB)
-
-            pdb.set_trace()
-            #------------------------------------------
-            #'''
-            
-            '''
-            print "begin plotting"
-            plot_dimreduce_3D(Y, traincols, Y, traincols, method, 
-                              n_neigh, (t1-t0), error, sample)
-            plot_dimreduce(Y, traincols, method, n_neigh, sample, axis=0)
-            plot_dimreduce(Y, traincols, method, n_neigh, sample, axis=1)
-            plot_dimreduce(Y, traincols, method, n_neigh, sample, axis=2)
-            '''
+        #====================================================================#
 
         elif args.alg == 'ISO':
             method='IsoMap'
@@ -603,4 +674,73 @@ y.append(6)
 elif c == 'black':
 y.append(7)
 y=np.array(y)
+'''
+
+'''
+# Classify
+#------------------------------------------
+
+clf = LDA()
+clf.fit(Y_train, y_train)
+y_pred = clf.predict(Y_test)
+
+matchesLDA = (y_pred == y_test)
+print np.sum(matchesLDA)
+
+pdb.set_trace()
+
+#------------------------------------------
+
+from sklearn.neighbors import KNeighborsClassifier
+knc = KNeighborsClassifier(5)
+knc.fit(Y_train, y_train)
+y_pred = knc.predict(Y_test)
+
+matchesKNN = (y_pred == y_test)
+print np.sum(matchesKNN)
+
+pdb.set_trace()
+#------------------------------------------
+
+from astroML.classification import GMMBayes
+gmmb = GMMBayes(9)
+gmmb.fit(Y_train, y_train)
+y_pred = gmmb.predict(Y_test)
+
+matchesGMMB = (y_pred == y_test)
+print np.sum(matchesGMMB)
+
+pdb.set_trace()
+#------------------------------------------
+#'''
+
+'''
+print "begin plotting"
+plot_dimreduce_3D(Y, traincols, Y, traincols, method, 
+n_neigh, (t1-t0), error, sample)
+plot_dimreduce(Y, traincols, method, n_neigh, sample, axis=0)
+plot_dimreduce(Y, traincols, method, n_neigh, sample, axis=1)
+plot_dimreduce(Y, traincols, method, n_neigh, sample, axis=2)
+'''
+        
+'''
+for color in xc_train:
+if color in ['red', 'lightsalmon', 'darkred']:
+color_train.append('red')
+elif color in ['darkgreen', 'lightgreen', 'lightseagreen']:
+color_train.append('green')
+elif color in ['indigo', 'darkviolet', 'plum']:
+color_train.append('purple')
+elif color == 'yellow':
+color_train.append('yellow')
+
+for color in xc_test:
+if color in ['red', 'lightsalmon', 'darkred']:
+color_test.append('red')
+elif color in ['darkgreen', 'lightgreen', 'lightseagrean']:
+color_test.append('green')
+elif color in ['indigo', 'darkviolet', 'plum']:
+color_test.append('purple')
+elif color == 'yellow':
+color_test.append('yellow') 
 '''

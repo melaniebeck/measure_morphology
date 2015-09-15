@@ -83,7 +83,7 @@ def clean_directory(outdir):
         os.system("rm -rf "+outdir+"*smooth*.fits")
 
 
-def clean_frame(image, outdir, sep=17.):
+def clean_frame(image, outdir, sep=17., survey='SDSS'):
     '''
     This is a multi-stage cleaning process for each galaxy cutout.
 
@@ -143,6 +143,11 @@ def clean_frame(image, outdir, sep=17.):
     x, y = 'X_IMAGE', 'Y_IMAGE'
     flux = 'FLUX_AUTO'
 
+    if survey == "SDSS":
+        configfile = 'se_params_SDSS.cfg'
+    elif survey == 'COSMOS':
+        configfile = 'se_params_COSMOS.cfg'
+
 
     basename = os.path.basename(os.path.splitext(image)[0])
     outname = outdir+basename
@@ -152,10 +157,12 @@ def clean_frame(image, outdir, sep=17.):
                 outname+'_smooth_seg.fits']
 
     # run SE in FAINT and BRIGHT modes
-    if not run_sextractor.run_SE(image, 'BRIGHT', outdir):
+    if not run_sextractor.run_SE(image, 'BRIGHT', cfg_filename=configfile, 
+                                 outdir=outdir):
         return [9, 9, 9, 9]
 
-    run_sextractor.run_SE(image, 'FAINT', outdir)
+    run_sextractor.run_SE(image, 'FAINT', cfg_filename=configfile, 
+                          outdir=outdir)
 
     # READ IN ORIG FITS-FILE and both Bright/Faint SEGMAPs
     img, ihdr = fits.getdata(image, header=True)
@@ -192,6 +199,7 @@ def clean_frame(image, outdir, sep=17.):
     if (DIST < sep):
         # FLAG 1: MOST COMMON CATEGORY --> CLEAN IN FAINT MODE
         if (Bdist < sep) & (Fdist < sep):
+            #cln = clean_image(cln, bseg, bcat, BIndex, fseg)
             cln = clean_image(cln, fseg, fcat, FIndex, fseg)
             category, mode = 1, 'FAINT'
 
@@ -202,9 +210,12 @@ def clean_frame(image, outdir, sep=17.):
             Seen as distinct objs in BRIGHT (but with crazy square edges)
             Seen as one blended obj in FAINT
             JUST FLAG THIS BITCH
+            9/6/15 -- These statements ^^^ appear only to be true for COSMOS 
+            data. Going to clean in Faint mode instead for SDSS
             '''
-            cln = clean_image(cln, bseg, bcat, BIndex, fseg)
-            category, mode = 2, 'BRIGHT'
+            #cln = clean_image(cln, bseg, bcat, BIndex, fseg)
+            cln = clean_image(cln, fseg, fcat, FIndex, fseg)
+            category, mode = 2, 'FAINT'
 
         # FLAG 3: CLEAN IN FAINT MODE
         elif (Bdist > sep) & (Fdist < sep):
@@ -215,7 +226,7 @@ def clean_frame(image, outdir, sep=17.):
             category, mode = 3, 'FAINT'
 
         # FLAG 4: TWO STAGE CLEANING -- BRIGHT --> RUN SE AGAIN IN FAINT
-        elif (Bdist > sep) & (Fdist > sep):
+        elif (Bdist > sep) & (Fdist > sep): 
 
             cln = clean_image(cln, bseg, bcat, BIndex, fseg)
 
@@ -226,7 +237,8 @@ def clean_frame(image, outdir, sep=17.):
 
             # run SE again in FAINT
             run_sextractor.run_SE(outname+'_mid_cln.fits', 'FAINT', 
-                                  outdir, outstr2='run2')
+                                  cfg_filename=configfile, 
+                                  outdir=outdir, outstr2='run2')
             f2seg = fits.getdata(outname+'_mid_cln_faint_run2_seg.fits')
             f2cat = fits.getdata(outname+'_mid_cln_faint_run2_cat.fits')
             coords = zip(f2cat[x], f2cat[y])
@@ -251,7 +263,8 @@ def clean_frame(image, outdir, sep=17.):
             
             # run SE again in FAINT
             run_sextractor.run_SE(outname+'_mid_cln.fits', 'FAINT', 
-                                  outdir, outstr2='run2')
+                                  cfg_filename=configfile, 
+                                  outdir=outdir, outstr2='run2')
             f2seg = fits.getdata(outname+'_mid_cln_faint_run2_seg.fits')
             f2cat = fits.getdata(outname+'_mid_cln_faint_run2_cat.fits')
             coords = zip(f2cat[x], f2cat[y])
@@ -267,7 +280,8 @@ def clean_frame(image, outdir, sep=17.):
             ''' These are mostly faint objects not detected in BRIGHT
             run SE in SMOOTH mode and then clean
             '''
-            run_sextractor.run_SE(image, 'SMOOTH', outdir)
+            run_sextractor.run_SE(image, 'SMOOTH', cfg_filename=configfile, 
+                                  outdir=outdir)
             sseg, scat = fits.getdata(segnames[2]), fits.getdata(catnames[2])
             SIndex, Sdist = find_closest(center, zip(scat[x], scat[y]))
 
@@ -323,7 +337,8 @@ def clean_frame(image, outdir, sep=17.):
 
     # Now that we've done the cleaning -- Let's test it!    
     run_sextractor.run_SE(outdir+'f_'+basename+'.fits', 'SMOOTH', 
-                          outdir, outstr2='test')
+                          cfg_filename=configfile, outdir=outdir, 
+                          outstr2='test')
     tseg = fits.getdata(outdir+'f_'+basename+'_smooth_test_seg.fits')
     tcat = fits.getdata(outdir+'f_'+basename+'_smooth_test_cat.fits')
 
@@ -360,8 +375,14 @@ def clean_frame(image, outdir, sep=17.):
         # either overcleaned or blended into nearby object
         oFlag = 1
 
+    # I want to save the cleaned image separate -- 9/5/15 
+    # get rid of this later, probably?
+    cleanedup = fits.ImageHDU(data=cln, header=ihdr, name='CLN%i'%category)
+    cleanedup.writeto(outdir+'f_'+basename+'_clnonly.fits', 
+                      output_verify='silentfix', clobber=True)
+
     # clean up directory
-    clean_directory(outdir)
+    #clean_directory(outdir) -- I don't want to clean up right now 9/5/15
 
     #FIndex, Fdist, Bdist, DIST, Farea, Barea,
     return  [category, oFlag, uFlag, bFlag]
