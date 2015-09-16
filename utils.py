@@ -175,11 +175,9 @@ class EllipticalAperture(object):
         self.a, self.b = a, b
         self.theta = theta
         self.data = data
-        #self.absval = absval
 
         self.aper = self.make_aperture()
         self.phot = self.photometry()
-
 
     def make_aperture(self):
         cosang = np.cos(self.theta+np.pi/2.)
@@ -196,32 +194,9 @@ class EllipticalAperture(object):
                          for x in np.ndindex(ellipse.shape)])
         mask = mask.reshape(self.data.shape)
 
-        '''
-        ellipse = Ellipse([self.x, self.y], self.a, self.b, self.theta)
-        mask = np.array([True if ellipse.contains_point([x,y]) 
-                         else False for x,y in np.ndindex(self.data.shape)])
-        mask = mask.reshape(self.data.shape)
-        
-        pdb.set_trace()
-        '''
         return mask.astype('float')
 
     def plot(self, ax=None, fill=False,  **kwargs):
-        '''
-        pts = np.zeros((361,2))
-        beta = self.theta
-        sin_beta = np.sin(beta)
-        cos_beta = np.cos(beta)
-
-        alpha = np.radians(np.r_[0.:360.:1j*(361)])
-        sin_alpha = np.sin(alpha)
-        cos_alpha = np.cos(alpha)
-
-        pts[:,0] = self.x + (self.a*cos_alpha*cos_beta - 
-                             self.b*sin_alpha*sin_beta)
-        pts[:,1] = self.y + (self.a*cos_alpha*sin_beta + 
-                             self.b*sin_alpha*cos_beta)
-        '''
         
         kwargs['fill'] = fill
 
@@ -232,8 +207,6 @@ class EllipticalAperture(object):
         patch = Ellipse((self.x, self.y), 2.*self.a, 2*self.b, 
                         theta_deg, **kwargs)
         ax.add_patch(patch)
-
-        #ax.plot(pts[:,0], pts[:,1], **kwargs)
 
     def photometry(self):
         #if self.asbval:
@@ -253,7 +226,6 @@ class EllipticalAperture(object):
         (skysub_aper_counts, aper_area, total_aper_counts,
          sky_area, total_sky_counts, med_sky_counts, std_sky_counts)
         '''
-        print "here i am"
         aper = self.aper * self.data
 
         pdb.set_trace()
@@ -262,7 +234,48 @@ class EllipticalAperture(object):
         #sky_area = self.skyradius**2*np.pi - aper_area
 
         return 0
+
+class CircularAperture(object):
+
+    def __init__(self, xycenter, r, data):
+        self.x, self.y = xycenter
+        self.r = r
+        self.data = data
+
+        self.aper = self.make_aperture()
+        self.phot = self.photometry()
+
+    def make_aperture(self):
+        circle = np.array([(self.x-x)**2/self.r**2 + (self.y-y)**2/self.r**2 \
+                           for x,y in np.ndindex(self.data.shape)])
+
+        mask = np.array([True if circle[x] <= 1 else False \
+                         for x in np.ndindex(circle.shape)])
+
+        mask = mask.reshape(self.data.shape)
+
+        return mask.astype('float')
+
+    def plot(self, ax=None, fill=False,  **kwargs):
         
+        kwargs['fill'] = fill
+
+        if ax is None:
+            ax = plt.gca()
+
+        theta_deg = self.theta*180./np.pi
+        patch = Circle((self.x, self.y), 2.*self.a, 2*self.b, 
+                        theta_deg, **kwargs)
+        ax.add_patch(patch)
+
+    def photometry(self):
+        return np.sum(np.abs(self.aper * self.data))
+
+    def area(self):
+        return len(self.aper[self.aper != 0.])
+
+
+
 def generate_deltas(center, shiftsize, shift):
 
     increments = (0.,-shiftsize,shiftsize)

@@ -878,6 +878,51 @@ def Rp_compare(cat1, cat2, xylabels, histlabels, outname):
     plt.close()
 
 
+def elliptical_circular_compare_SDSS():
+    cat = Table.read('test_galchanges.fits')
+
+    fig = plt.figure(figsize=(16,16))
+    ax1 = fig.add_subplot(221)
+
+    #'''
+    ax1.plot(cat['C'], cat['C_c'], 'ys')
+    ax1.plot([2., 5.], [2., 5.], 'k--', lw=1.5)
+    #ax1.set_xlabel('Elliptical')
+    ax1.set_ylabel('Circular')
+    ax1.set_title('Concentration')
+    '''
+    ax1.plot(cat1['Mx'], cat2['Mx'], 'ys')
+    ax1.plot([2., 5.], [2., 5.], 'k--', lw=1.5)
+    #ax1.set_xlabel('Elliptical')
+    ax1.set_ylabel('Circular')
+    ax1.set_title('Concentration')
+    '''
+    ax2 = fig.add_subplot(222)
+    ax2.plot(cat['A'], cat['A_c'], 'bs')
+    ax2.plot([-.1, .5], [-.1, .5], 'k--', lw=1.5)
+    #ax2.set_xlabel('Elliptical')
+    #ax2.set_ylabel('Circular')
+    ax2.set_title('Asymmetry')
+
+    ax3 = fig.add_subplot(223)
+    ax3.plot(cat['G2'], cat['G2_c'], 'rs')
+    ax3.plot([.25, .75], [.25, .75], 'k--', lw=1.5)
+    ax3.set_xlabel('Elliptical')
+    ax3.set_ylabel('Circular')
+    ax3.set_title('Gini')
+
+    ax4 = fig.add_subplot(224)
+    ax4.plot(cat['M20'], cat['M20_c'], 'gs')
+    ax4.plot([-3., -1.], [-3., -1.], 'k--', lw=1.5)
+    ax4.set_xlabel('Elliptical')
+    #ax4.set_ylabel('Circular')
+    ax4.set_title('M20')
+
+    plt.tight_layout()
+    plt.savefig('morphparams_ell_circ_SDSS2.png')
+    plt.show()
+
+
 def main():
     
     parser = argparse.ArgumentParser(description='Compare my catalog with ZEST\nPlots Concentration, Asymmetry, Gini, and M20 of the two catalogs')
@@ -888,24 +933,25 @@ def main():
     args = parser.parse_args()
 
 
-    cat1 = Table.read(args.catalog1)
-    cat2 = Table.read(args.catalog2)
+    #cat1 = Table.read(args.catalog1)
+    #cat2 = Table.read(args.catalog2)
     #cat = cat.filled()
 
+    elliptical_circular_compare_SDSS()
 
-    labels=['Elliptical', 'Circular']
+    #labels=['Elliptical', 'Circular']
     #labels=['Original', 'New (M20/G fixed)']
-    outtag = 'circularRp'
+    #outtag = 'circularRp'
 
     #gini_m20_compare(cat1, cat2, titles=labels, 
     #                 outfile='SDSS_compare_%s'%outtag)
 
-    Rp_compare(cat1, cat2, xylabels=labels, histlabels=labels, 
-               outname='SDSS_compare_%s'%outtag)
-    exit()
+    #Rp_compare(cat1, cat2, xylabels=labels, histlabels=labels, 
+    #           outname='SDSS_compare_%s'%outtag)
     
     #compare_parameters(cat, fout='18Ksample')
 
+    '''
     f = open('incorrect_gals_2classes.txt', 'w+')
     prefix = 'scp beck@ramon-1.spa.umn.edu:/data/extragal/beck/output/datacube/'
     badgals = cat[~cat['correct']]
@@ -914,6 +960,7 @@ def main():
     f.close()
 
     exit()
+    #'''
 
     #bigz = Table.read('catalogs/ZEST_catalog.fits')
     #colorcode(bigz, outname='catalogs/ZEST_catalog_colors.fits')
