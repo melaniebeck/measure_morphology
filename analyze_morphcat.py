@@ -3,15 +3,10 @@ Run a slew of various plots to assess the quality of the resulting SDSS
 morphology catalogs I create with galaxy.py
 '''
 
-import os
-import string
-import argparse
 import numpy as np
-from astropy.table import Table
-from scipy.stats import nanmedian 
+from astropy.table import Table, vstack
 from collections import OrderedDict, defaultdict
 import matplotlib.pyplot as plt
-from math import pi
 import pdb 
 
 def lotz_mergers(m20):
@@ -39,12 +34,6 @@ def compare_parameters(dat, fout='mycat'):
     ax10.set_yticks([1,2,3,4])
     #ax10.tick_params(axis='x', pad=8)
     #plt.text(0.5, 0.5, '10', fontsize=20, color='red', transform=ax10.transAxes)
-    '''
-    ax10.text(0,19, 'Ellipticals', fontsize=16, color='red')
-    ax10.text(0,18, 'Disks', fontsize=16, color='purple')
-    ax10.text(0,17, 'Edge-on Disks', fontsize=16, color='green')
-    ax10.text(0,16, 'Mergers', fontsize=16, color='yellow')
-    '''
     
     ################
     
@@ -140,7 +129,7 @@ def compare_parameters(dat, fout='mycat'):
     #plt.text(0.5, 0.5, '4', fontsize=20, color='red', transform=ax4.transAxes)
 
     #gs.tight_layout(fig)
-    plt.savefig('compare_parameters_'+fout+'.png')
+    plt.savefig('morph_params_'+fout+'.pdf')
     plt.show()
     plt.close()
 
@@ -169,8 +158,7 @@ def bin_contour():
 
     pdb.set_trace()
 
-   # '''
-def gini_m20_compare(cat1, cat2, titles, outfile):
+def gini_m20_compare(dat, fout):
 
     fig = plt.figure(figsize=(20,8))
 
@@ -179,130 +167,136 @@ def gini_m20_compare(cat1, cat2, titles, outfile):
     x2 = np.arange(-3.5, -1.6, .1)
     y2 = lotz_separation(x2)
 
-    ax1 = fig.add_subplot(131)
+    ax1 = fig.add_subplot(121)
 
-    ax1.plot(cat1['M20_2'], cat1['G_2'], 'r.', alpha=.5) 
+    ax1.plot(dat['M20'], dat['G'], 'r.', alpha=.5) 
     ax1.plot(x1, y1,'k',lw=2, label='Merger Line (Lotz 08)')
     ax1.plot(x2, y2,'k--',lw=2, label='Morph Line (Lotz 08)')
-    #ax.plot([0,-3.], [.4, .4], 'k--')   
-
+    
+    ax1.set_title('Elliptical Apertures')
     ax1.set_ylabel('Gini', fontsize=14)
     ax1.set_xlabel('M20', fontsize=14)
-    ax1.set_title('Ellipt Apers, M20/G bad [Original]')
     ax1.set_xlim(1., -3.5)
     ax1.set_ylim(.2, .8)
 
-    ax2 = fig.add_subplot(132)
+    ax2 = fig.add_subplot(122)
 
-    ax2.plot(cat1['M20'], cat1['G'], 'r.',  alpha=.5) 
+    ax2.plot(dat['M20_c'], dat['G_c'], 'r.',  alpha=.5) 
     ax2.plot(x1, y1,'k',lw=2, label='Merger Line (Lotz 08)')
     ax2.plot(x2, y2,'k--', lw=2, label='Morph Line (Lotz 08)')
-    #ax2.plot([0,-3.], [.4, .4], 'k--')   
-
-    #ax2.set_ylabel('Gini', fontsize=14)
+    
+    ax2.set_title('Circular Apertures')
     ax2.set_xlabel('M20', fontsize=14)
-    ax2.set_title('Ellipt Apers, M20/G fixed')
     ax2.set_xlim(1., -3.5)
     ax2.set_ylim(.2, .8)
     
-    ax3 = fig.add_subplot(133)
-    ax3.plot(cat2['M20'], cat2['G'], 'r.',  alpha=.5) 
-    ax3.plot(x1, y1,'k',lw=2, label='Merger Line (Lotz 08)')
-    ax3.plot(x2, y2,'k--', lw=2, label='Morph Line (Lotz 08)')
-    #ax3.plot([0,-3.], [.4, .4], 'k--')   
-
-    #ax3.set_ylabel('Gini', fontsize=14)
-    ax3.set_xlabel('M20', fontsize=14)
-    ax3.set_title('Circular Apers, M20/G fixed')
-    ax3.set_xlim(1., -3.5)
-    ax3.set_ylim(.2, .8)
-
     plt.tight_layout()
     
-    plt.savefig('G-M20_SDSS.png')
+    plt.savefig('G-M20_'+fout+'.pdf')
 
     plt.show()
     plt.close()
 
-def Rp_compare(cat1, cat2, xylabels, histlabels, outname):
-    try:
-        cat1['Rp'] = cat1['Rp_1']
-        cat2['Rp'] = cat2['Rp_1']
-    except:
-       pass
-
+def Rp_compare(dat, fout):
     fig = plt.figure(figsize=(8,8))
 
     ax1 = fig.add_subplot(111)
-    ax1.plot(cat1['Rp_2']*.396, cat2['petrorad_i'], 'r.', 
-             label='Ell Aper; Original cleaning')
-    ax1.plot(cat1['Rp']*.396, cat2['petrorad_i'], 'b.', 
-             label='Ell Aper; better cleaning')
-    ax1.plot(cat2['Rp']*.396, cat2['petrorad_i'], 'y.', 
-             label='Circ Aper; better cleaning')
+    ax1.plot(dat['Rp']*.396, dat['petrorad_i'], 'r.', 
+             label='Elliptical')
+
+    ax1.plot(dat['Rp_c']*.396, dat['petrorad_i'], 'b.', 
+             label='Circular')
+
     ax1.plot([0,100], [0,100], 'k--',lw=1.5, 
              label='1-to-1')
+
     ax1.set_xlabel('My Petrosian Radii [arcsec]')
     ax1.set_ylabel('SDSS Petrosian Radius [arcsec]')
-    #ax1.set_title('Petrosian Radius [pixels]'
+
     ax1.set_ylim(0,55)
     ax1.legend(loc='best')
     
-    '''
-    ax2 = fig.add_subplot(122)
-    ax2.hist(cat1['Rp'], bins=100, normed=True, color='blue', alpha=.5,
-             label=histlabels[0])
-    ax2.hist(cat2['Rp'], bins=100, normed=True, color='red', alpha=.5, 
-             label=histlabels[1])
-    ax2.set_xlabel('Rp [pixels]')
-    ax2.legend(loc='best')
-    #'''
-
-    plt.savefig('Rp_SDSS.png')
+    plt.savefig('PetrosianRad_compare_'+fout+'.pdf')
     plt.show()
     plt.close()
 
-
-def elliptical_circular_compare_SDSS():
-    cat = Table.read('test_galchanges.fits')
+def elliptical_circular_compare_SDSS(dat, fout):
 
     fig = plt.figure(figsize=(16,16))
-    ax1 = fig.add_subplot(221)
 
-    #'''
-    ax1.plot(cat['C'], cat['C_c'], 'ys')
-    ax1.plot([2., 5.], [2., 5.], 'k--', lw=1.5)
+    ax1 = fig.add_subplot(221)
+    ax1.plot(dat['C'], dat['C_c'], 'y.')
+    ax1.plot([1., 7.], [1., 7.], 'k--', lw=2)
     #ax1.set_xlabel('Elliptical')
     ax1.set_ylabel('Circular')
     ax1.set_title('Concentration')
-    '''
-    ax1.plot(cat1['Mx'], cat2['Mx'], 'ys')
-    ax1.plot([2., 5.], [2., 5.], 'k--', lw=1.5)
-    #ax1.set_xlabel('Elliptical')
-    ax1.set_ylabel('Circular')
-    ax1.set_title('Concentration')
-    '''
+
     ax2 = fig.add_subplot(222)
-    ax2.plot(cat['A'], cat['A_c'], 'bs')
-    ax2.plot([-.1, .5], [-.1, .5], 'k--', lw=1.5)
+    ax2.plot(dat['A'], dat['A_c'], 'b.')
+    ax2.plot([-.1, .7], [-.1, .7], 'k--', lw=2)
     #ax2.set_xlabel('Elliptical')
     #ax2.set_ylabel('Circular')
     ax2.set_title('Asymmetry')
 
     ax3 = fig.add_subplot(223)
-    ax3.plot(cat['G2'], cat['G2_c'], 'rs')
-    ax3.plot([.25, .75], [.25, .75], 'k--', lw=1.5)
+    ax3.plot(dat['G'], dat['G_c'], 'r.')
+    ax3.plot([.2, .8], [.2, .8], 'k--', lw=2)
     ax3.set_xlabel('Elliptical')
     ax3.set_ylabel('Circular')
     ax3.set_title('Gini')
 
     ax4 = fig.add_subplot(224)
-    ax4.plot(cat['M20'], cat['M20_c'], 'gs')
-    ax4.plot([-3., -1.], [-3., -1.], 'k--', lw=1.5)
+    ax4.plot(dat['M20'], dat['M20_c'], 'g.')
+    ax4.plot([-3.5, 0.], [-3.5, 0.], 'k--', lw=2)
     ax4.set_xlabel('Elliptical')
-    #ax4.set_ylabel('Circular')
     ax4.set_title('M20')
 
     plt.tight_layout()
-    plt.savefig('morphparams_ell_circ_SDSS2.png')
+    plt.savefig('ell_circ_'+fout+'.pdf')
     plt.show()
+
+def distributions(dat, fout):
+    fig = plt.figure()
+    ax1 = fig.add_subplot(221)
+    ax1.hist(dat['REDSHIFT'], bins=50, color='red', alpha=.5, 
+             normed=True, range=(0,.5))
+    ax1.set_xlabel('z')
+    
+    ax2 = fig.add_subplot(223)
+    ax2.hist(dat['MEDIAN'], bins=50, color='red', alpha=.5, 
+             normed=True, range=(5, 15))
+    ax2.set_xlabel('log[Stellar Mass]')
+    
+    ax3 = fig.add_subplot(222)
+    ax3.hist(dat['petrorad_i'], bins=50, color='red', alpha=.5, 
+             normed=True,range=(0,75))
+    ax3.set_xlabel('SDSS i band Petro Rad [arcseconds]')
+    
+    ax4 = fig.add_subplot(224)
+    ax4.hist(dat['Rp_c']*.396, bins=50, color='red', alpha=.5, 
+             normed=True, range=(0,75))
+    ax4.set_xlabel('My Petro Rad [arcseconds]')
+    
+    plt.tight_layout()
+    plt.savefig('z_Rp_mass_dist_'+fout+'.pdf')
+    plt.show()
+
+
+def main():
+
+    #data1 = Table.read('GZ2Photoz_ancillary_morphology_masses.fits')
+    data2 = Table.read('GZ2Specz_ancillary_morphology_masses.fits')
+
+    #dat = vstack((data1, data2))
+
+
+    fout = 'fullGZ2'
+    #compare_parameters(data2, fout='fullGZ2_ell')
+    #elliptical_circular_compare_SDSS(data2, fout)
+    #Rp_compare(data2, fout)
+    #distributions(data2, fout)
+
+    gini_m20_compare(data2, fout)
+
+if __name__ == '__main__':
+    main()
