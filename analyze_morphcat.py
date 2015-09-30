@@ -19,7 +19,7 @@ def compare_parameters(dat, fout='mycat'):
     
     colors = 'black'
 
-    fig = plt.figure(figsize=(10,8))
+    fig = plt.figure(figsize=(20,16))
     gs = plt.GridSpec(4,4)
     gs.update(wspace=0.005, hspace=0.005)
 
@@ -129,7 +129,7 @@ def compare_parameters(dat, fout='mycat'):
     #plt.text(0.5, 0.5, '4', fontsize=20, color='red', transform=ax4.transAxes)
 
     #gs.tight_layout(fig)
-    plt.savefig('morph_params_'+fout+'.pdf')
+    plt.savefig('morph_params_'+fout+'.png')
     plt.show()
     plt.close()
 
@@ -282,6 +282,8 @@ def distributions(dat, fout):
     plt.show()
 
 
+
+
 def main():
 
     #data1 = Table.read('GZ2Photoz_ancillary_morphology_masses.fits')
@@ -292,10 +294,10 @@ def main():
 
     fout = 'fullGZ2'
     compare_parameters(data2, fout='fullGZ2_ell')
-    elliptical_circular_compare_SDSS(data2, fout)
-    Rp_compare(data2, fout)
-    distributions(data2, fout)
-    gini_m20_compare(data2, fout)
+    #elliptical_circular_compare_SDSS(data2, fout)
+    #Rp_compare(data2, fout)
+    #distributions(data2, fout)
+    #gini_m20_compare(data2, fout)
 
 if __name__ == '__main__':
     main()
