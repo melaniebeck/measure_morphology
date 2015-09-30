@@ -521,7 +521,6 @@ def compare_catalogs(z, m, fout='mycat'):
     plt.close()
 
 def compare_parameters(dat, fout='mycat'):
-    from matplotlib.mlab import griddata
 
     try:
         dat['A']= dat['A_1a']
@@ -534,7 +533,6 @@ def compare_parameters(dat, fout='mycat'):
     except:
         colors = 'black'
 
-    #pdb.set_trace()
     '''
     x, y = dat['A'], dat['C']
     notnans = np.where((~np.isnan(x) & ~np.isnan(y)))
@@ -558,6 +556,9 @@ def compare_parameters(dat, fout='mycat'):
     pdb.set_trace()
 
     '''
+=======
+
+>>>>>>> 68e24779598baa3a7f78b8fbefc25c1fec76d8ff
     fig = plt.figure(figsize=(10,8))
     gs = plt.GridSpec(4,4)
     gs.update(wspace=0.005, hspace=0.005)
@@ -568,17 +569,13 @@ def compare_parameters(dat, fout='mycat'):
     ax10.set_xlabel('A', fontsize=20)
     ax10.set_ylabel('C', fontsize=20)
     ax10.set_ylim(0., 6.)
+
     ax10.set_xlim(0., .8)
     ax10.set_xticks([0.2, 0.4, 0.6])
     ax10.set_yticks([1,2,3,4])
     #ax10.tick_params(axis='x', pad=8)
     #plt.text(0.5, 0.5, '10', fontsize=20, color='red', transform=ax10.transAxes)
-    '''
-    ax10.text(0,19, 'Ellipticals', fontsize=16, color='red')
-    ax10.text(0,18, 'Disks', fontsize=16, color='purple')
-    ax10.text(0,17, 'Edge-on Disks', fontsize=16, color='green')
-    ax10.text(0,16, 'Mergers', fontsize=16, color='yellow')
-    '''
+
     
     ################
     
@@ -589,6 +586,7 @@ def compare_parameters(dat, fout='mycat'):
     #ax8.set_ylabel('C')
     ax8.set_xlim(0.2, 0.8)
     ax8.set_ylim(0., 6.)
+
     ax8.set_xticks([0.4, 0.5, 0.6])
     #plt.text(0.5, 0.5, '8', fontsize=20, color='red', transform=ax8.transAxes)
     
@@ -598,6 +596,7 @@ def compare_parameters(dat, fout='mycat'):
     #ax9.set_xlabel('G')
     ax9.set_ylabel('A', fontsize=20)
     ax9.set_xlim(0.2, 0.8)
+
     ax9.set_ylim(0., .8)
     ax9.set_yticks([0.2, 0.4, 0.6])
     #plt.text(0.5, 0.5, '9', fontsize=20, color='red', transform=ax9.transAxes)
@@ -611,6 +610,7 @@ def compare_parameters(dat, fout='mycat'):
     #ax5.set_ylabel('C')
     ax5.set_xlim(0., -3.5)
     ax5.set_ylim(0., 6.)
+
     ax5.set_xticks([-2.5, -1.5, -0.5])
     #plt.text(0.5, 0.5, '5', fontsize=20, color='red', transform=ax5.transAxes)
     
@@ -620,6 +620,7 @@ def compare_parameters(dat, fout='mycat'):
     #ax6.set_xlabel('M20')
     #ax6.set_ylabel('A')
     ax6.set_xlim(0., -3.5)
+
     ax6.set_ylim(0., .8)
     #plt.text(0.5, 0.5, '6', fontsize=20, color='red', transform=ax6.transAxes)
     
@@ -630,6 +631,7 @@ def compare_parameters(dat, fout='mycat'):
     ax7.set_ylabel('G', fontsize=20)
     ax7.set_xlim(0., -3.5)
     ax7.set_ylim(0.2, 0.8)
+
     ax7.set_yticks([0.4, 0.5, 0.6])
     #plt.text(0.5, 0.5, '7', fontsize=20, color='red', transform=ax7.transAxes)
     
@@ -642,6 +644,7 @@ def compare_parameters(dat, fout='mycat'):
     #ax1.set_ylabel('C')
     ax1.set_ylim(0., 6.)
     ax1.set_xlim(0., .9)
+
     ax1.set_xticks([0.2, 0.4, 0.6, 0.8])
     #plt.text(0.5, 0.5, '1', fontsize=20, color='red', transform=ax1.transAxes)
     
@@ -651,7 +654,7 @@ def compare_parameters(dat, fout='mycat'):
     #ax2.set_xlabel('elipt')
     #ax2.set_ylabel('A')
     ax2.set_ylim(0., .8)
-    ax2.set_xlim(0., .9)
+
     #plt.text(0.5, 0.5, '2', fontsize=20, color='red', transform=ax2.transAxes)
     
     ax3 = fig.add_subplot(gs[1,3], sharex=ax1, sharey=ax7)
@@ -661,6 +664,7 @@ def compare_parameters(dat, fout='mycat'):
     #ax3.set_ylabel('G')
     ax3.set_xlim(0., .9)
     ax3.set_ylim(0.2, 0.8)
+
     #plt.text(0.5, 0.5, '3', fontsize=20, color='red', transform=ax3.transAxes)
     
     ax4 = fig.add_subplot(gs[0,3])
@@ -670,6 +674,7 @@ def compare_parameters(dat, fout='mycat'):
     ax4.set_ylabel('M20', fontsize=20)
     ax4.set_ylim(0., -3.5)
     ax4.set_xlim(0., .9)
+
     ax4.set_yticks([-2.5, -1.5, -0.5])
     #plt.text(0.5, 0.5, '4', fontsize=20, color='red', transform=ax4.transAxes)
 
@@ -967,6 +972,7 @@ def main():
 
     #elliptical_circular_compare_SDSS()
 
+
     #labels=['Elliptical', 'Circular']
     #labels=['Original', 'New (M20/G fixed)']
     #outtag = 'circularRp'
@@ -979,6 +985,7 @@ def main():
     
     pdb.set_trace()
     compare_parameters(cat, fout='fullGZ2')
+
 
     '''
     f = open('incorrect_gals_2classes.txt', 'w+')

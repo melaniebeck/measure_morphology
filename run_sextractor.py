@@ -24,8 +24,8 @@ def single_SE(image, outstr, outdir='', params={}, outstr2=0):
     params['-checkimage_name'] = seg
 
     #args = ['/usr/bin/sex', image] # for running on my laptop
-    #args = ['$HOME/Software/sex', image] # for running on ramons
-    args = ['/home/user1/beck/Software/sex', image]
+    args = ['/home/user1/beck/Software/sex', image] # to run on Ramons
+
     for key, value in params.iteritems():
         args.append(key)
         args.append(value)

@@ -144,6 +144,7 @@ def get_SB_Mask(Rp, Rp_SB, image, outname):
     convimg = fits.ImageHDU(data=conv)
     convimg.writeto(outname+'_conv.fits', clobber=True)
 
+
     mask = np.array([True if conv[x] >= Rp_SB else False \
                      for x in np.ndindex(conv.shape)])
     mask = mask.reshape(conv.shape).astype('float')
@@ -164,6 +165,7 @@ def get_SB_Mask(Rp, Rp_SB, image, outname):
     else: 
         mm = fits.ImageHDU(data=mask)
         mm.writeto(outname+'_mask.fits', clobber=True)
+
         return mask
 
 

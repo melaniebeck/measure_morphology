@@ -9,7 +9,6 @@ fields.
 
 
 import numpy as np
-#import pyfits as fits
 from astropy.table import Table
 from astropy.io import fits
 import matplotlib.pyplot as plt
@@ -138,7 +137,6 @@ warnings.filterwarnings('ignore', message='Overwriting existing file .*',
                         module='fits')
 
 stripe82_only(gzdat, size, 'SDSSimages_stripe82/')
-pdb.set_trace()
 
 # Instead of going through each object, you should go through each FRAME? 
 # Ain't nobody got time to recode that though...
@@ -223,6 +221,4 @@ for obj in gzdat:
                 print name+" not found!"
                 obj['imgflag_4Rp']=1
 
-
-pdb.set_trace()         
 gzdat.write('gz2sample_cutouts.fits')

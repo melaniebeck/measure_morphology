@@ -29,6 +29,7 @@ import warnings
 class Galaxy(object):
 
     def __init__(self, hdulist, filename, flags, outdir):
+
         # initialize fits image & catalog data
         try:
             image = hdulist['UCLN'].data
@@ -52,6 +53,7 @@ class Galaxy(object):
                     os.path.basename(filename))[0].split('_')[1])
         self._outdir = outdir
 
+
         # SEXTRACTOR ATTRIBUTES        
         self.e = cat['ELONGATION']
         self.x, self.y = cat['X_IMAGE'], cat['Y_IMAGE']
@@ -69,6 +71,7 @@ class Galaxy(object):
         self.Rp_c, self.Rp_SB_c, self.Rpflag_c = self.get_petro_circ(image)
         
         if not np.isnan(self.Rp) and not np.isnan(self.Rp_c):
+
             # CREATE SOME APERTURES IN WHICH TO MEASURE LIGHT DISTRIBUTIONS
             # get_asym requires apertures centered on image center
             ell_ap = EllipticalAperture((self.xc, self.yc), self.Rp, 
@@ -93,6 +96,7 @@ class Galaxy(object):
             self.r20_c, self.r50_c, self.r80_c, self.C_c = \
                 self.get_concentration_circ(image)
 
+
             [self.G, self.G_c] = self.get_gini1(image, [gell_ap, gcirc_ap])
             [self.G2, self.G2_c]= self.get_gini2(image)
 
@@ -109,6 +113,7 @@ class Galaxy(object):
             self.G_c, self.G2_c = np.nan, np.nan 
             self.M20 = self.M20_c = np.nan 
             self.Mx, self.My = self.x, self.y
+
                 
     def __enter__(self):
         return self
@@ -320,6 +325,7 @@ class Galaxy(object):
             bkg.writeto(self._outdir+'asymimgs/'+self.name+'_bkg.fits', 
                         clobber=True, output_verify='silentfix')          
 
+
         # minimize the background asymmetry
         ba = []
         for idx1 in range(bkg_img.shape[0]):
@@ -337,6 +343,7 @@ class Galaxy(object):
         return bkgasym
         
     def get_asymmetry(self, image, aper, save_residual=False):
+
         '''
         1. make a smaller image of the galaxy -> 2*petrosian rad
         2. create a background image
@@ -402,6 +409,7 @@ class Galaxy(object):
                     res.writeto(self._outdir+'asymimgs/'+self.name+'_res.fits', 
                                 clobber=True, output_verify='silentfix')
 
+
                 return ga[0]-bkg_asym/dd[0], asym_center[0], asym_center[1]
 
             else:
@@ -411,6 +419,7 @@ class Galaxy(object):
 
 
     def get_concentration_ell(self, image):
+
         '''
         To calculate the conctration we need to find the radius 
             -- which encloses 20% of the total light
@@ -423,6 +432,7 @@ class Galaxy(object):
            see where this ratio crosses .2 and .8
         #'''
         print "calculating Concentration..."
+
         a = 10*np.logspace(-1.0, np.log10(np.min([self.xc,self.yc])/10.),num=20)
         b = a/self.e
         position = [self.Ax, self.Ay]
@@ -463,8 +473,9 @@ class Galaxy(object):
                                num=20)
 
         # Build circular annuli centered on the ASYMMETRY CENTER of the galaxy
-        annuli = [CircularAnnulus((self.Ax_c, self.Ay_c), radii[i-1], radii[i]) \
-                  for i in range(1,len(radii))] 
+        annuli = np.hstack([CircularAnnulus((self.Ax_c, self.Ay_c), 
+                                            radii[i-1], radii[i]) \
+                                for i in range(1,len(radii))] 
         counts = np.hstack([aperture_photometry(image, an, method='exact') \
                             for an in annuli])['aperture_sum']
         cum_sum = np.cumsum(counts)[:-1]
@@ -489,7 +500,7 @@ class Galaxy(object):
         conc = 5*np.log10(np.divide(r80, r20))
 
         return r20, r50, r80, conc
-        
+ 
     def get_gini1(self, image, apertures):
         print "calculating Gini..."
 
@@ -519,6 +530,7 @@ class Galaxy(object):
             utils.checkdir(self._outdir+'masks/')
             outname = self._outdir+'masks/'+self.name
             mask = utils.get_SB_Mask(rp, rp_sb, image, outname)*image
+
             if isinstance(mask, int):
                 return np.nan
         
@@ -589,7 +601,7 @@ class Galaxy(object):
             
             # find the coordinates of that minimum
             xc, yc = np.where(mtots == Mtot)
-            #pdb.set_trace()
+
             # re-create the distance grid corresponding to those coordinates
             grid = (xc - x2)**2 + (yc - y2)**2
             
@@ -691,6 +703,7 @@ def main():
 
     utils.checkdir(args.outdir+'datacube/')
 
+
     try:
         t = Table.read(args.catalog_name)
         counter = len(t)
@@ -702,10 +715,13 @@ def main():
         basename = os.path.basename(f)
         filename = args.outdir+'datacube/f_'+basename
 
+
         #if not os.path.isfile(filename):
         #print "File not found! Running SExtractor before proceeding."
         print "Cleaning ", os.path.basename(f)
-        flags = clean.clean_frame(f, args.outdir+'datacube/', sep=4, survey='SDSS')
+        flags = clean.clean_frame(f, args.outdir+'datacube/', sep=4, 
+                                  survey='SDSS')
+
         
         # check to see if SExtractor failed
         if np.any(np.array(flags)-9 < 0):
@@ -717,6 +733,7 @@ def main():
 
             #if not np.isnan(g.Rp):
             #    galaxy_plot.plot(g, hdulist)
+
 
             if (idx == 0) and (counter == 0):
                 t, gal_dict = g.table(init=True)

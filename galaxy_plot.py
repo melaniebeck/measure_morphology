@@ -53,6 +53,7 @@ def petro_radius(gal, image):
     plt.title('1 Petrosian Radius') 
     gs.tight_layout(fig)
     plt.savefig(gal._outdir+'figures/'+gal.name+'_RpAper.png')
+
     plt.close()
 
 def petro_radius2(params, image):
@@ -135,6 +136,7 @@ def petro_SB(gal):
 
     gs.tight_layout(fig)
     plt.savefig(gal._outdir+'figures/'+gal.name+'_SBprofile.png')
+
     #plt.show()
     plt.close()
     
@@ -197,7 +199,11 @@ def asym_plot(gal, image):
                               gal.theta)
 
     # read in residual figure created during asymmetry calculation
+<<<<<<< HEAD
     residual = fits.getdata(gal._outdir+'asymimgs/'+gal.name+'_res.fits')
+=======
+    residual = fits.getdata('output/asymimgs/'+gal.name+'_res.fits')
+>>>>>>> 68e24779598baa3a7f78b8fbefc25c1fec76d8ff
    
     hist, bins = np.histogram(residual[shape[0]-size:shape[0]+size, 
                                        shape[1]-size:shape[1]+size])
@@ -226,6 +232,7 @@ def asym_plot(gal, image):
             transform=ax.transAxes)
     gs.tight_layout(fig)
     plt.savefig(gal._outdir+'figures/'+gal.name+'_asym.png')
+
     #plt.show()   
     plt.close()
 
@@ -252,6 +259,7 @@ def conc_plot(gal, image):
 
     gs.tight_layout(fig)
     plt.savefig(gal._outdir+'figures/'+gal.name+'_conc.png')
+
     #plt.show()
     plt.close()
 
@@ -317,8 +325,8 @@ def m20_plot(gal, image):
     #'''
     gs.tight_layout(fig)
 
-    #pdb.set_trace()
     plt.savefig(gal._outdir+'figures/'+gal.name+'_M20.png')
+
     #plt.show()
     plt.close()
 
@@ -329,6 +337,7 @@ def plot(galaxy, hdulist):
         clean_img = hdulist['CLN'].data
 
     utils.checkdir(galaxy._outdir+'figures/')
+
     petro_radius(galaxy, clean_img)
     petro_SB(galaxy)
     asym_plot(galaxy, clean_img)

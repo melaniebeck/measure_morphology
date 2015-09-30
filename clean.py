@@ -156,7 +156,6 @@ def clean_frame(image, outdir, sep=17., survey='SDSS'):
     segnames = [outname+'_bright_seg.fits', outname+'_faint_seg.fits',
                 outname+'_smooth_seg.fits']
 
-    #pdb.set_trace()
     # run SE in FAINT and BRIGHT modes
     if not run_sextractor.run_SE(image, 'BRIGHT', cfg_filename=configfile, 
                                  outdir=outdir):
@@ -191,6 +190,7 @@ def clean_frame(image, outdir, sep=17., survey='SDSS'):
                 brightdist = np.sqrt((bx-center[0])**2+(by-center[0])**2)
                 if brightdist < 150.:
                     bFlag = 1        
+
 
     # If nothing found in BRIGHT, assign Bdist to edge of image (251.)
     else: 
@@ -307,8 +307,7 @@ def clean_frame(image, outdir, sep=17., survey='SDSS'):
             pdb.set_trace()
             cln = clean_image(cln, bseg, bcat, BIndex, fseg)
             category, mode = 8, 'BRIGHT'
-    #print category
-    #pdb.set_trace()
+
     # Save all major data products
     if mode == 'BRIGHT':
         datacube = savedata(mode, ihdr, BIndex, data=[bseg, fseg, bcat], 
@@ -389,6 +388,7 @@ def clean_frame(image, outdir, sep=17., survey='SDSS'):
 
     # clean up directory
     clean_directory(outdir) # doesn't work?! Harrumph.
+
 
     #FIndex, Fdist, Bdist, DIST, Farea, Barea,
     return  [category, oFlag, uFlag, bFlag]
