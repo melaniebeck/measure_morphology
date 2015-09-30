@@ -192,7 +192,7 @@ def gini_m20_compare(dat, fout):
     
     plt.tight_layout()
     
-    plt.savefig('G-M20_'+fout+'.pdf')
+    plt.savefig('G-M20_'+fout+'.png')
 
     plt.show()
     plt.close()
@@ -216,7 +216,7 @@ def Rp_compare(dat, fout):
     ax1.set_ylim(0,55)
     ax1.legend(loc='best')
     
-    plt.savefig('PetrosianRad_compare_'+fout+'.pdf')
+    plt.savefig('PetrosianRad_compare_'+fout+'.png')
     plt.show()
     plt.close()
 
@@ -252,7 +252,7 @@ def elliptical_circular_compare_SDSS(dat, fout):
     ax4.set_title('M20')
 
     plt.tight_layout()
-    plt.savefig('ell_circ_'+fout+'.pdf')
+    plt.savefig('ell_circ_'+fout+'.png')
     plt.show()
 
 def distributions(dat, fout):
@@ -278,7 +278,7 @@ def distributions(dat, fout):
     ax4.set_xlabel('My Petro Rad [arcseconds]')
     
     plt.tight_layout()
-    plt.savefig('z_Rp_mass_dist_'+fout+'.pdf')
+    plt.savefig('z_Rp_mass_dist_'+fout+'.png')
     plt.show()
 
 
@@ -291,11 +291,10 @@ def main():
 
 
     fout = 'fullGZ2'
-    #compare_parameters(data2, fout='fullGZ2_ell')
-    #elliptical_circular_compare_SDSS(data2, fout)
-    #Rp_compare(data2, fout)
-    #distributions(data2, fout)
-
+    compare_parameters(data2, fout='fullGZ2_ell')
+    elliptical_circular_compare_SDSS(data2, fout)
+    Rp_compare(data2, fout)
+    distributions(data2, fout)
     gini_m20_compare(data2, fout)
 
 if __name__ == '__main__':
