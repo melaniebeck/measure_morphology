@@ -324,11 +324,14 @@ def gini_m20_compare(dat, fout):
     y2 = lotz_separation(x2)
 
     ax1 = fig.add_subplot(121)
-
-    ax1.plot(dat['M20'], dat['G'], 'r.', alpha=.5) 
+    lims = [-3.5, 1., .2, .8]
+    grid, extent, aspect = density(dat['M20'], dat['G'], lims, 25)
+    im = ax1.imshow(grid.T, origin='low', extent=lims, 
+                    interpolation='nearest', norm=LogNorm(vmin=1.,vmax=15000.),
+                    aspect=1./aspect, cmap=plt.get_cmap('Reds'))
+    cbar = fig.colorbar(im)
     ax1.plot(x1, y1,'k',lw=2, label='Merger Line (Lotz 08)')
     ax1.plot(x2, y2,'k--',lw=2, label='Morph Line (Lotz 08)')
-    
     ax1.set_title('Elliptical Apertures')
     ax1.set_ylabel('Gini', fontsize=14)
     ax1.set_xlabel('M20', fontsize=14)
@@ -336,17 +339,20 @@ def gini_m20_compare(dat, fout):
     ax1.set_ylim(.2, .8)
 
     ax2 = fig.add_subplot(122)
-
-    ax2.plot(dat['M20_c'], dat['G_c'], 'r.',  alpha=.5) 
+    lims = [-3.5, 1., .2, .8]
+    grid, extent, aspect = density(dat['M20_c'], dat['G_c'], lims, 25)
+    im = ax2.imshow(grid.T, origin='low', extent=lims, 
+                    interpolation='nearest', norm=LogNorm(vmin=1.,vmax=15000.),
+                    aspect=1./aspect, cmap=plt.get_cmap('Reds'))
+    cbar = fig.colorbar(im)
     ax2.plot(x1, y1,'k',lw=2, label='Merger Line (Lotz 08)')
     ax2.plot(x2, y2,'k--', lw=2, label='Morph Line (Lotz 08)')
-    
     ax2.set_title('Circular Apertures')
     ax2.set_xlabel('M20', fontsize=14)
     ax2.set_xlim(1., -3.5)
     ax2.set_ylim(.2, .8)
     
-    plt.tight_layout()
+    #plt.tight_layout()
     
     plt.savefig('G-M20_'+fout+'.png')
 
@@ -356,53 +362,89 @@ def gini_m20_compare(dat, fout):
 def Rp_compare(dat, fout):
     fig = plt.figure(figsize=(8,8))
 
-    ax1 = fig.add_subplot(111)
-    ax1.plot(dat['Rp']*.396, dat['petrorad_i'], 'r.', 
-             label='Elliptical')
-
-    ax1.plot(dat['Rp_c']*.396, dat['petrorad_i'], 'b.', 
-             label='Circular')
-
-    ax1.plot([0,100], [0,100], 'k--',lw=1.5, 
-             label='1-to-1')
-
-    ax1.set_xlabel('My Petrosian Radii [arcsec]')
+    ax1 = fig.add_subplot(211)
+    lims = [0., 100., 0., 75.]
+    grid, extent, aspect = density(dat['Rp']*.396, dat['petrorad_i'], lims, 25)
+    im = ax1.imshow(grid.T, origin='low', extent=lims, 
+                    interpolation='nearest', norm=LogNorm(vmin=1.,vmax=15000.),
+                    aspect=aspect, cmap=plt.get_cmap('Reds'))
+    cbar = fig.colorbar(im)
+    ax1.plot([0,100], [0,100], 'k--',lw=1.5)
+    ax1.set_xlabel('My PetroRad (elliptical) [arcsec]')
     ax1.set_ylabel('SDSS Petrosian Radius [arcsec]')
+    ax1.set_xlim(0,100.)
+    ax1.set_ylim(0,75.)
 
-    ax1.set_ylim(0,55)
-    ax1.legend(loc='best')
+    ax2 = fig.add_subplot(212)
+    lims = [0., 100., 0., 75.]
+    grid, extent, aspect = density(dat['Rp_c']*.396, dat['petrorad_i'], lims, 25)
+    im = ax2.imshow(grid.T, origin='low', extent=lims, 
+                    interpolation='nearest', norm=LogNorm(vmin=1.,vmax=15000.),
+                    aspect=aspect, cmap=plt.get_cmap('Blues'))
+    cbar = fig.colorbar(im)
+    ax2.plot([0,100], [0,100], 'k--',lw=1.5, label='1-to-1')
+    ax2.set_xlabel('My PetroRad (circular)[arcsec]')
+    ax2.set_ylabel('SDSS Petrosian Radius [arcsec]')
+    ax2.set_xlim(0,100.)
+    ax2.set_ylim(0,75.)
     
-    plt.savefig('PetrosianRad_compare_'+fout+'.png')
+    plt.savefig('PetroRad_compare_'+fout+'.png')
     plt.show()
     plt.close()
 
 def elliptical_circular_compare_SDSS(dat, fout):
 
-    fig = plt.figure(figsize=(16,16))
+    fig = plt.figure(figsize=(10,10))
 
     ax1 = fig.add_subplot(221)
-    ax1.plot(dat['C'], dat['C_c'], 'y.')
-    ax1.plot([1., 7.], [1., 7.], 'k--', lw=2)
+    lims = [0., 6., 0., 6.]
+    grid, extent, aspect = density(dat['C'], dat['C_c'], lims, 25)
+    im = ax1.imshow(grid.T, origin='low', extent=lims, 
+                    interpolation='nearest', norm=LogNorm(vmin=1.,vmax=15000.),
+                    aspect=aspect, cmap=plt.get_cmap('Oranges'))
+    cbar = fig.colorbar(im)
+    #ax1.plot(dat['C'], dat['C_c'], 'y.')
+    ax1.plot([0., 6.], [0., 6.], 'k--', lw=2)
+    ax1.set_xlim(0., 6.)
+    ax1.set_ylim(0., 6.)
     #ax1.set_xlabel('Elliptical')
     ax1.set_ylabel('Circular')
     ax1.set_title('Concentration')
 
     ax2 = fig.add_subplot(222)
-    ax2.plot(dat['A'], dat['A_c'], 'b.')
-    ax2.plot([-.1, .7], [-.1, .7], 'k--', lw=2)
-    #ax2.set_xlabel('Elliptical')
-    #ax2.set_ylabel('Circular')
+    #ax2.plot(dat['A'], dat['A_c'], 'b.')
+    lims = [-0.5, 1.5, -0.5, 1.5]
+    grid, extent, aspect = density(dat['A'], dat['A_c'], lims, 25)
+    im = ax2.imshow(grid.T, origin='low', extent=lims, 
+                    interpolation='nearest', norm=LogNorm(vmin=1.,vmax=15000.),
+                    aspect=aspect, cmap=plt.get_cmap('BuPu'))
+    cbar = fig.colorbar(im)
+    ax2.plot([-0.5, 1.5], [-0.5, 1.5], 'k--', lw=2)
+    ax2.set_xlim(-0.5, 1.5)
+    ax2.set_ylim(-0.5, 1.5)
     ax2.set_title('Asymmetry')
 
     ax3 = fig.add_subplot(223)
-    ax3.plot(dat['G'], dat['G_c'], 'r.')
-    ax3.plot([.2, .8], [.2, .8], 'k--', lw=2)
+    #ax3.plot(dat['G'], dat['G_c'], 'r.')
+    lims = [0., 1.0, 0., 1.0]
+    grid, extent, aspect = density(dat['G'], dat['G_c'], lims, 25)
+    im = ax3.imshow(grid.T, origin='low', extent=lims, 
+                    interpolation='nearest', norm=LogNorm(vmin=1.,vmax=15000.),
+                    aspect=aspect, cmap=plt.get_cmap('Reds'))
+    cbar = fig.colorbar(im)
+    ax3.plot([0., 1.], [0., 1.], 'k--', lw=2)
     ax3.set_xlabel('Elliptical')
     ax3.set_ylabel('Circular')
     ax3.set_title('Gini')
 
     ax4 = fig.add_subplot(224)
-    ax4.plot(dat['M20'], dat['M20_c'], 'g.')
+    #ax4.plot(dat['M20'], dat['M20_c'], 'g.')
+    lims = [-3.5, 0., -3.5, 0.]
+    grid, extent, aspect = density(dat['M20'], dat['M20_c'], lims, 25)
+    im = ax4.imshow(grid.T, origin='low', extent=lims, 
+                    interpolation='nearest', norm=LogNorm(vmin=1.,vmax=15000.),
+                    aspect=aspect, cmap=plt.get_cmap('Greens'))
+    cbar = fig.colorbar(im)
     ax4.plot([-3.5, 0.], [-3.5, 0.], 'k--', lw=2)
     ax4.set_xlabel('Elliptical')
     ax4.set_title('M20')
@@ -475,14 +517,14 @@ def main():
 
     dat = new_data2
 
-    fout = 'fullGZ2_noflags'
-    compare_parameters_density(dat, fout='fullGZ2_ell_noflags_density')
+    fout = 'fullGZ2_noflags_density'
+    #compare_parameters_density(dat, fout='fullGZ2_ell_noflags_density')
 
     #compare_parameters(dat, fout='fullGZ2_ell_noflags')
     #elliptical_circular_compare_SDSS(dat, fout)
     #Rp_compare(dat, fout)
     #distributions(dat, fout)
-    #gini_m20_compare(dat, fout)
+    gini_m20_compare(dat, fout)
     #z_mag_rp(dat, fout)
 
 
