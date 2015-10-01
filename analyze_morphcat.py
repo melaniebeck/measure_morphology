@@ -7,6 +7,7 @@ import numpy as np
 from astropy.table import Table, vstack
 from collections import OrderedDict, defaultdict
 import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
 import pdb 
 
 def lotz_mergers(m20):
@@ -133,30 +134,185 @@ def compare_parameters(dat, fout='mycat'):
     plt.show()
     plt.close()
 
+def compare_parameters_density(dat, fout='mycat'):
+    
+    colors = 'black'
 
-def bin_contour():
+    fig = plt.figure(figsize=(8,8))
+    gs = plt.GridSpec(4,4)
+    gs.update(wspace=0.005, hspace=0.005)
 
     #'''
-    x, y = dat['A'], dat['C']
+    ax10 = fig.add_subplot(gs[3,0])
+    ax10.set_adjustable('box-forced')
+    lims = [0, .8, 0, 6.]
+    grid, extent, aspect = density(dat['A'], dat['C'], lims, 25)
+    test=grid.T[grid.T !=0.]
+    print np.min(test), np.max(test)
+    #pdb.set_trace()
+    im1 = ax10.imshow(grid.T, origin='low', extent=lims, 
+                     interpolation='nearest', norm=LogNorm(vmin=1.,vmax=15000.),
+                     aspect=aspect, cmap=plt.get_cmap('Blues'))
+    ax10.set_xlabel('A', fontsize=20)
+    ax10.set_ylabel('C', fontsize=20)
+    ax10.set_ylim(0., 6.)
+    ax10.set_xlim(0., .8)
+    ax10.set_xticks([0.2, 0.4, 0.6])
+    ax10.set_yticks([1,2,3,4])
+
+    ################
+    
+    ax8 = fig.add_subplot(gs[3,1], sharey=ax10)
+    ax8.set_adjustable('box-forced')
+    plt.setp(ax8.get_yticklabels(), visible=False)
+    lims = [0.2, .8, 0., 6.]
+    grid, extent, aspect = density(dat['G'], dat['C'], lims, 25)
+    im = ax8.imshow(grid.T, origin='low', extent=lims, 
+                    interpolation='nearest', norm=LogNorm(vmin=1.,vmax=15000.), 
+                    aspect=aspect, cmap=plt.get_cmap('Blues'))
+    ax8.set_xlabel('G', fontsize=20)
+    ax8.set_xlim(0.2, 0.8)
+    ax8.set_ylim(0., 6.)
+    ax8.set_xticks([0.4, 0.5, 0.6])
+    
+    ax9 = fig.add_subplot(gs[2,1], sharex=ax8)
+    ax9.set_adjustable('box-forced')
+    plt.setp(ax9.get_xticklabels(), visible=False)
+    lims = [0.2, .8, 0., .8]
+    grid, extent, aspect = density(dat['G'], dat['A'], lims, 25)
+    im = ax9.imshow(grid.T, origin='low', extent=lims, 
+                    interpolation='nearest', norm=LogNorm(vmin=1.,vmax=15000.),
+                    aspect=aspect, cmap=plt.get_cmap('Blues'))
+    ax9.set_ylabel('A', fontsize=20)
+    ax9.set_xlim(0.2, 0.8)
+    ax9.set_ylim(0., .8)
+    ax9.set_yticks([0.2, 0.4, 0.6])
+    
+    ################
+    
+    ax5 = fig.add_subplot(gs[3,2], sharey=ax10)
+    ax5.set_adjustable('box-forced')
+    plt.setp(ax5.get_yticklabels(), visible=False)
+    lims = [-3.5, 0., 0., 6.]
+    grid, extent, aspect = density(dat['M20'], dat['C'], lims, 25)
+    im = ax5.imshow(grid.T, origin='low', extent=lims, 
+                    interpolation='nearest', norm=LogNorm(vmin=1.,vmax=15000.),
+                    aspect=aspect, cmap=plt.get_cmap('Blues'))
+    ax5.set_xlabel('M20', fontsize=20)
+    ax5.set_xlim(0., -3.5)
+    ax5.set_ylim(0., 6.)
+    ax5.set_xticks([-2.5, -1.5, -0.5])
+    
+    ax6 = fig.add_subplot(gs[2,2], sharex=ax5, sharey=ax9)
+    ax6.set_adjustable('box-forced')
+    plt.setp((ax6.get_xticklabels(), ax6.get_yticklabels()), visible=False)
+    lims = [-3.5, 0., 0., .8]
+    grid, extent, aspect = density(dat['M20'], dat['A'], lims, 25)
+    im = ax6.imshow(grid.T, origin='low', extent=lims, 
+                    interpolation='nearest', norm=LogNorm(vmin=1.,vmax=15000.),
+                    aspect=1./aspect, cmap=plt.get_cmap('Blues'))
+    ax6.set_xlim(0., -3.5)
+    ax6.set_ylim(0., .8)
+    
+    ax7 = fig.add_subplot(gs[1,2], sharex=ax5)
+    ax7.set_adjustable('box-forced')
+    plt.setp(ax7.get_xticklabels(), visible=False)
+    lims = [-3.5, 0., 0.2, .8]
+    grid, extent, aspect = density(dat['M20'], dat['G'], lims, 25)
+    im = ax7.imshow(grid.T, origin='low', extent=lims, 
+                    interpolation='nearest', norm=LogNorm(vmin=1.,vmax=15000.),
+                    aspect=1./aspect, cmap=plt.get_cmap('Blues'))
+    ax7.set_ylabel('G', fontsize=20)
+    ax7.set_xlim(0., -3.5)
+    ax7.set_ylim(0.2, 0.8)
+    ax7.set_yticks([0.4, 0.5, 0.6])
+    
+    ################
+    
+    ax1 = fig.add_subplot(gs[3,3], sharey=ax10)
+    ax1.set_adjustable('box-forced')
+    plt.setp(ax1.get_yticklabels(), visible=False)
+    lims = [0., .9, 0., 6.]
+    grid, extent, aspect = density(dat['elipt'], dat['C'], lims, 25)
+    im = ax1.imshow(grid.T, origin='low', extent=lims, 
+                    interpolation='nearest', norm=LogNorm(vmin=1.,vmax=15000.),
+                    aspect=aspect, cmap=plt.get_cmap('Blues'))
+    ax1.set_xlabel('elipt', fontsize=20)
+    ax1.set_xlim(0., .9)
+    ax1.set_ylim(0., 6.)
+    ax1.set_xticks([0.2, 0.4, 0.6, 0.8])
+    
+    ax2 = fig.add_subplot(gs[2,3], sharex=ax1, sharey=ax9)
+    ax2.set_adjustable('box-forced')
+    plt.setp((ax2.get_xticklabels(), ax2.get_yticklabels()), visible=False)
+    lims = [0., .9, 0., .8]
+    grid, extent, aspect = density(dat['elipt'], dat['A'], lims, 25)
+    im = ax2.imshow(grid.T, origin='low', extent=lims, 
+                    interpolation='nearest', norm=LogNorm(vmin=1.,vmax=15000.),
+                    aspect=1./aspect, cmap=plt.get_cmap('Blues'))
+    ax2.set_xlim(0., .9)
+    ax2.set_ylim(0., .8)
+    
+    ax3 = fig.add_subplot(gs[1,3], sharex=ax1, sharey=ax7)
+    ax3.set_adjustable('box-forced')
+    plt.setp((ax3.get_xticklabels(),ax3.get_yticklabels()), visible=False)
+    lims = [0., .9, 0.2, .8]
+    grid, extent, aspect = density(dat['elipt'], dat['G'], lims, 25)
+    im = ax3.imshow(grid.T, origin='low', extent=lims, 
+                    interpolation='nearest', norm=LogNorm(vmin=1.,vmax=15000.),
+                    aspect=1./aspect, cmap=plt.get_cmap('Blues'))
+    ax3.set_xlim(0., .9)
+    ax3.set_ylim(0.2, 0.8)
+    
+    ax4 = fig.add_subplot(gs[0,3])
+    ax4.set_adjustable('box-forced')
+    plt.setp(ax4.get_xticklabels(), visible=False)
+    lims = [0., .9, -3.5, 0.]
+    grid, extent, aspect = density(dat['elipt'], dat['M20'], lims, 25)
+    im = ax4.imshow(grid.T, origin='low', extent=lims, 
+                    interpolation='nearest', norm=LogNorm(vmin=1.,vmax=15000.),
+                    aspect=aspect, cmap=plt.get_cmap('Blues'))
+    ax4.set_ylabel('M20', fontsize=20)
+    ax4.set_xlim(0., .9)
+    ax4.set_ylim(0., -3.5)
+    ax4.set_yticks([-2.5, -1.5, -0.5])
+
+    # add colorbar
+    cbaxes = fig.add_axes([0.13, 0.87, 0.45, 0.02])
+    cbax = fig.colorbar(mappable=im1, cax=cbaxes, orientation='horizontal')
+	#ticks=[-5,-4.5,-4,-3.5,-3,-2.5,-2,-1.5,-1],
+    cbax.ax.set_xlabel('number of galaxies', fontsize=16)
+
+    plt.savefig('morph_params_'+fout+'.png')
+    plt.show()
+    plt.close()
+
+
+def density(x, y, limits, numbins):
+
     notnans = np.where((~np.isnan(x) & ~np.isnan(y)))
     x, y = x[notnans], y[notnans]
 
-    gridx = np.linspace(0,.8, 10)
-    gridy = np.linspace(2,6,20)
+    xsize = np.abs(limits[1]-limits[0])
+    ysize = np.abs(limits[3]-limits[2])
 
-    grid, xedges, yedges = np.histogram2d(x, y, bins=[gridx, gridy]) 
-    #normed=True)
+    if xsize > ysize:
+        aspect = ysize/xsize
+    else:
+        aspect = xsize/ysize
 
-    plt.figure()
-    myextent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
-    plt.imshow(grid.T, origin='low', extent=myextent, interpolation='nearest',
-               aspect=.3)
-    #plt.pcolormesh(gridx,gridy,grid)
-    #plt.plot(x,y,'bo', alpha=.2)
-    plt.colorbar()
-    plt.show()
+    gridx = np.linspace(limits[0], limits[1], numbins)
+    gridy = np.linspace(limits[2], limits[3], numbins)
 
-    pdb.set_trace()
+    grid, xedges, yedges = np.histogram2d(x, y, bins=[gridx, gridy])
+    extent = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
+
+    #plt.figure()
+    #plt.imshow(grid.T, origin='low', extent=extent, interpolation='nearest',
+    #           aspect=aspect)
+    #plt.show()
+    return grid, extent, aspect
+
 
 def gini_m20_compare(dat, fout):
 
@@ -254,6 +410,7 @@ def elliptical_circular_compare_SDSS(dat, fout):
     plt.tight_layout()
     plt.savefig('ell_circ_'+fout+'.png')
     plt.show()
+    plt.close()
 
 def distributions(dat, fout):
     fig = plt.figure()
@@ -280,24 +437,55 @@ def distributions(dat, fout):
     plt.tight_layout()
     plt.savefig('z_Rp_mass_dist_'+fout+'.png')
     plt.show()
+    plt.close()
+
+def z_mag_rp(dat, fout):
+    fig = plt.figure(figsize=(10,8))
+    ax1 = fig.add_subplot(211)
+    ax1.plot(dat['REDSHIFT'], dat['PETROMAG_I'], 'k.')
+    ax1.set_ylabel('i-band Mag')
+
+    ax2 = fig.add_subplot(212)
+    ax2.plot(dat['REDSHIFT'], dat['Rp']*.396, 'k.')
+    ax2.set_ylabel('Petrosian Rad [arcsec]')
+    ax2.set_xlabel('z')
+
+    plt.savefig('z_mag_rp_'+fout+'.png')
+    plt.show()
+    plt.close()
 
 
+def remove_flags(dat):
+    colnames = dat.colnames
+    flags = [name for name in colnames if 'flag' in name and name[0]!='t']
 
+    newdat = dat.copy()
+    for f in flags:
+        newdat = newdat[np.where(newdat[f] == 0)]
 
+    return newdat
+    
 def main():
 
     #data1 = Table.read('GZ2Photoz_ancillary_morphology_masses.fits')
     data2 = Table.read('GZ2Specz_ancillary_morphology_masses.fits')
 
     #dat = vstack((data1, data2))
+    new_data2 = remove_flags(data2)
+
+    dat = new_data2
+
+    fout = 'fullGZ2_noflags'
+    compare_parameters_density(dat, fout='fullGZ2_ell_noflags_density')
+
+    #compare_parameters(dat, fout='fullGZ2_ell_noflags')
+    #elliptical_circular_compare_SDSS(dat, fout)
+    #Rp_compare(dat, fout)
+    #distributions(dat, fout)
+    #gini_m20_compare(dat, fout)
+    #z_mag_rp(dat, fout)
 
 
-    fout = 'fullGZ2'
-    compare_parameters(data2, fout='fullGZ2_ell')
-    #elliptical_circular_compare_SDSS(data2, fout)
-    #Rp_compare(data2, fout)
-    #distributions(data2, fout)
-    #gini_m20_compare(data2, fout)
 
 if __name__ == '__main__':
     main()
