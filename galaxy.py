@@ -67,8 +67,8 @@ class Galaxy(object):
         self.med, self.rms = self.background(image, segmap)
 
         # PETROSIAN RADIUS & FRIENDS
-        self.Rp, self.Rp_SB, self.Rpflag = self.get_petro_ell(image)
-        self.Rp_c, self.Rp_SB_c, self.Rpflag_c = self.get_petro_circ(image)
+        #self.Rp, self.Rp_SB, self.Rpflag = self.get_petro_ell(image)
+        self.Rp_c = self.get_petro_circ(image)
       
         '''
         if not np.isnan(self.Rp) and not np.isnan(self.Rp_c):
@@ -144,12 +144,12 @@ class Galaxy(object):
     def get_petro_ell(self, image):
         r_flag = 0
        
-		#'''
+        #'''
         # condition of np.log10(imgsize/constant) ensures that the maximum
         # radius will never exceed the size of the image
         a = 10*np.logspace(-1.0, np.log10(np.min([self.xc,self.yc])/10.),num=20)
         b = a/self.e
-		#'''
+        #'''
 		
         position = [self.x, self.y]
 	
@@ -233,42 +233,57 @@ class Galaxy(object):
             return rp, rp_sb, r_flag
 
 
-	def get_petro_circ(self, image):
-		r_flag = 0
-       
-		# condition of np.log10(imgsize/constant) ensures that the maximum
-		# radius will never exceed the size of the image
-		#a = 10*np.logspace(-1.0, np.log10(np.min([self.xc,self.yc])/10.),num=20
-		#b = a/self.e
-		position = [self.x, self.y]
+    def get_petro_circ(self, image):
+        # Trying to match Rp from SDSS
+        # minimize (ratio - 0.2)? Need an initial guess? 
 
-		# Trying to match Rp from SDSS
-		# minimize the ratio - 0.2? Need an initial guess? If too big, take R = .9r else R = 1.1r?
-		r0 = 50  #initial guess in pixels
-		eta = 0.2
-		epsilon = 0.001
-		condition= True
-		while condition: #np.abs(ratio-eta) < episilon: 
-			annulus = CircularAnnulus(position, 0.8*r0, 1.25*r0)
-			an_counts = aperture_photometry(image, annulus, method='exact')['aperture_sum']
-			an_area = annulus.area()
+        r0 = 50  #initial guess in pixels
+        eta = 0.2
+        epsilon = 0.001
+        condition= True
+        count = 1
 
-			aperture = CircularAperture(position, r0)
-			ap_counts = aperture_photometry(image, aperture, method='exact')['aperture_sum']
-			ap_area = aperture.area()
+        while condition: 
+            annulus = CircularAnnulus(position, 0.8*r0, 1.25*r0)
+            
+            an_counts = aperture_photometry(image, annulus, 
+                                            method='exact')['aperture_sum']
+            an_area = annulus.area()
+            
+            aperture = CircularAperture(position, r0)
+            ap_counts = aperture_photometry(image, aperture, 
+                                            method='exact')['aperture_sum']
+            ap_area = aperture.area()
+            
+            ratio = (an_counts/an_area)/(ap_counts/ap_area)
+            diff = (ratio-eta)[0]
+            print "ratio:", ratio[0]
+            print "diff:", diff
+            
+            if np.abs(ratio-eta) < epsilon:
+                condition = False
+                break
 
-			ratio = (an_counts/an_area)/(ap_counts/ap_area)
-			
-			if np.abs(ratio-eta) < epsilon:
-				condition = False
-			elif ratio-eta > epsilon:
-				r0 = .9*r0
-			else:
-				r0 = 1.1*r0
+            if diff < 0.:
+                r0 = .9*r0
+            else:
+                r0 = 1.1*r0
+                
+        
+            count+=1
 
-		pdb.set_trace()
+        #print count
+        return r0
 
     def stuff():
+        r_flag = 0
+
+        # condition of np.log10(imgsize/constant) ensures that the maximum
+        # radius will never exceed the size of the image
+        a = 10*np.logspace(-1.0, np.log10(np.min([self.xc,self.yc])/10.),num=20)
+        b = a/self.e
+        position = [self.x, self.y]
+        
         annuli = np.hstack([CircularAnnulus(position, a[idx], a[idx+1]) \
                             for idx, radius in enumerate(a[:-1])])
         
@@ -506,9 +521,10 @@ class Galaxy(object):
         # Build circular annuli centered on the ASYMMETRY CENTER of the galaxy
         annuli = np.hstack([CircularAnnulus((self.Ax_c, self.Ay_c), 
                                             radii[i-1], radii[i]) \
-                                for i in range(1,len(radii))] 
-		counts = np.hstack([aperture_photometry(image, an, method='exact' \
-							for an in annuli])['aperture_sum']
+                            for i in range(1,len(radii))])
+ 
+        counts = np.hstack([aperture_photometry(image, an, method='exact') \
+                            for an in annuli])['aperture_sum']
         cum_sum = np.cumsum(counts)[:-1]
 
         tot_aper = CircularAperture((self.Ax_c, self.Ay_c), 1.5*self.Rp_c)

@@ -23,8 +23,8 @@ def single_SE(image, outstr, outdir='', params={}, outstr2=0):
     params['-checkimage_type'] = 'segmentation'
     params['-checkimage_name'] = seg
 
-    #args = ['/usr/bin/sex', image] # for running on my laptop
-    args = ['/home/user1/beck/Software/sex', image] # to run on Ramons
+    args = ['/usr/bin/sex', image] # for running on my laptop
+    #args = ['/home/user1/beck/Software/sex', image] # to run on Ramons
 
     for key, value in params.iteritems():
         args.append(key)
