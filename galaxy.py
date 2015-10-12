@@ -69,7 +69,8 @@ class Galaxy(object):
         # PETROSIAN RADIUS & FRIENDS
         self.Rp, self.Rp_SB, self.Rpflag = self.get_petro_ell(image)
         self.Rp_c, self.Rp_SB_c, self.Rpflag_c = self.get_petro_circ(image)
-        
+      
+        '''
         if not np.isnan(self.Rp) and not np.isnan(self.Rp_c):
 
             # CREATE SOME APERTURES IN WHICH TO MEASURE LIGHT DISTRIBUTIONS
@@ -113,7 +114,7 @@ class Galaxy(object):
             self.G_c, self.G2_c = np.nan, np.nan 
             self.M20 = self.M20_c = np.nan 
             self.Mx, self.My = self.x, self.y
-
+        '''
                 
     def __enter__(self):
         return self
@@ -143,12 +144,15 @@ class Galaxy(object):
     def get_petro_ell(self, image):
         r_flag = 0
        
+		#'''
         # condition of np.log10(imgsize/constant) ensures that the maximum
         # radius will never exceed the size of the image
         a = 10*np.logspace(-1.0, np.log10(np.min([self.xc,self.yc])/10.),num=20)
         b = a/self.e
+		#'''
+		
         position = [self.x, self.y]
-
+	
         annuli = np.hstack([EllipticalAnnulus(position, a[idx], a[idx+1], 
                                               b[idx], self.theta) \
                             for idx, radius in enumerate(a[:-1])])
@@ -229,15 +233,42 @@ class Galaxy(object):
             return rp, rp_sb, r_flag
 
 
-    def get_petro_circ(self, image):
-        r_flag = 0
+	def get_petro_circ(self, image):
+		r_flag = 0
        
-        # condition of np.log10(imgsize/constant) ensures that the maximum
-        # radius will never exceed the size of the image
-        a = 10*np.logspace(-1.0, np.log10(np.min([self.xc,self.yc])/10.),num=20)
-        b = a/self.e
-        position = [self.x, self.y]
+		# condition of np.log10(imgsize/constant) ensures that the maximum
+		# radius will never exceed the size of the image
+		#a = 10*np.logspace(-1.0, np.log10(np.min([self.xc,self.yc])/10.),num=20
+		#b = a/self.e
+		position = [self.x, self.y]
 
+		# Trying to match Rp from SDSS
+		# minimize the ratio - 0.2? Need an initial guess? If too big, take R = .9r else R = 1.1r?
+		r0 = 50  #initial guess in pixels
+		eta = 0.2
+		epsilon = 0.001
+		condition= True
+		while condition: #np.abs(ratio-eta) < episilon: 
+			annulus = CircularAnnulus(position, 0.8*r0, 1.25*r0)
+			an_counts = aperture_photometry(image, annulus, method='exact')['aperture_sum']
+			an_area = annulus.area()
+
+			aperture = CircularAperture(position, r0)
+			ap_counts = aperture_photometry(image, aperture, method='exact')['aperture_sum']
+			ap_area = aperture.area()
+
+			ratio = (an_counts/an_area)/(ap_counts/ap_area)
+			
+			if np.abs(ratio-eta) < epsilon:
+				condition = False
+			elif ratio-eta > epsilon:
+				r0 = .9*r0
+			else:
+				r0 = 1.1*r0
+
+		pdb.set_trace()
+
+    def stuff():
         annuli = np.hstack([CircularAnnulus(position, a[idx], a[idx+1]) \
                             for idx, radius in enumerate(a[:-1])])
         
@@ -305,7 +336,7 @@ class Galaxy(object):
         else:
             rp, rp_sb, r_flag = np.nan, np.nan, 2
             return rp, rp_sb, r_flag
- 
+
 
     def bkg_asymmetry(self, aperture, plot=False):
 
@@ -476,8 +507,8 @@ class Galaxy(object):
         annuli = np.hstack([CircularAnnulus((self.Ax_c, self.Ay_c), 
                                             radii[i-1], radii[i]) \
                                 for i in range(1,len(radii))] 
-        counts = np.hstack([aperture_photometry(image, an, method='exact') \
-                            for an in annuli])['aperture_sum']
+		counts = np.hstack([aperture_photometry(image, an, method='exact' \
+							for an in annuli])['aperture_sum']
         cum_sum = np.cumsum(counts)[:-1]
 
         tot_aper = CircularAperture((self.Ax_c, self.Ay_c), 1.5*self.Rp_c)
