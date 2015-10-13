@@ -68,8 +68,8 @@ class Galaxy(object):
 
         # PETROSIAN RADIUS & FRIENDS
         #self.Rp, self.Rp_SB, self.Rpflag = self.get_petro_ell(image)
-        self.Rp_c = self.get_petro_circ(image)
-      
+        self.Rp_c1, self.Rp_SB_c, self.Rpflag_c = self.get_petro_circ(image)
+        self.Rp_c2, self.Rpflag_c2 = self.get_petro_circ2(image)
         '''
         if not np.isnan(self.Rp) and not np.isnan(self.Rp_c):
 
@@ -233,13 +233,15 @@ class Galaxy(object):
             return rp, rp_sb, r_flag
 
 
-    def get_petro_circ(self, image):
+    def get_petro_circ2(self, image):
+        rflag = 0
         # Trying to match Rp from SDSS
         # minimize (ratio - 0.2)? Need an initial guess? 
 
-        r0 = 50  #initial guess in pixels
+        r0 = self.kron  #initial guess in pixels
+        r0 = 50
         eta = 0.2
-        epsilon = 0.001
+        epsilon = 0.0001
         condition= True
         count = 1
 
@@ -257,25 +259,32 @@ class Galaxy(object):
             
             ratio = (an_counts/an_area)/(ap_counts/ap_area)
             diff = (ratio-eta)[0]
-            print "ratio:", ratio[0]
-            print "diff:", diff
+            #print "ratio:", ratio[0]
+            #print "diff:", diff
             
             if np.abs(ratio-eta) < epsilon:
                 condition = False
                 break
 
             if diff < 0.:
-                r0 = .9*r0
+                r0 = .95*r0
             else:
-                r0 = 1.1*r0
-                
-        
+                r0 = 1.05*r0
+
+            if r0 > image.shape[0]/2.:
+                rflag = 1
+                condition = False
+                break
+
             count+=1
+        
+        if r0 > 2*self.Rp_c1:
+            pdb.set_trace()
 
         #print count
-        return r0
+        return r0, rflag
 
-    def stuff():
+    def get_petro_circ1(self, image):
         r_flag = 0
 
         # condition of np.log10(imgsize/constant) ensures that the maximum

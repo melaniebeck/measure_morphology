@@ -34,8 +34,6 @@ def select_sample(gzclass, outname):
     '''
     #gzclass = Table.read('zoo2MainSpecz_Ancillary.fits')
     gzmerg = Table.read('zoo2Mergers.fits')
-
-    #pdb.set_trace()
     
     gzclass.add_column(Column(data=np.zeros(len(gzclass)), 
                               name='zclass', dtype=float))
