@@ -199,11 +199,7 @@ def asym_plot(gal, image):
                               gal.theta)
 
     # read in residual figure created during asymmetry calculation
-<<<<<<< HEAD
     residual = fits.getdata(gal._outdir+'asymimgs/'+gal.name+'_res.fits')
-=======
-    residual = fits.getdata('output/asymimgs/'+gal.name+'_res.fits')
->>>>>>> 68e24779598baa3a7f78b8fbefc25c1fec76d8ff
    
     hist, bins = np.histogram(residual[shape[0]-size:shape[0]+size, 
                                        shape[1]-size:shape[1]+size])
