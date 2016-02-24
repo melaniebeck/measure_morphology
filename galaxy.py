@@ -540,7 +540,8 @@ class Galaxy(object):
                             for an in annuli])['aperture_sum']
         cum_sum = np.cumsum(counts)[:-1]
 
-        tot_aper = CircularAperture((self.Ax_c, self.Ay_c), 1.5*self.Rp_c)
+        # 2/24/16: Changed this to be 1.5*elliptical Rp (instead of circular)
+        tot_aper = CircularAperture((self.Ax_c, self.Ay_c), 1.5*self.Rp)
         tot_flux = float(aperture_photometry(image, tot_aper, 
                                              method='center')['aperture_sum'])
         
