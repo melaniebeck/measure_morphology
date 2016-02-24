@@ -283,8 +283,6 @@ class Galaxy(object):
             if count == 70:
                 pdb.set_trace()
 
-
-
         if r0 > image.shape[0]/2.:
             rflag = 1
             #condition = False

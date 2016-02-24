@@ -131,6 +131,37 @@ def select_sample(gzclass, outname):
 
 
 def main():
+    '''
+    10/14/15
+    What I was doing before was selecting out only those galaxies which had
+    the most secure/likely GZ2 classifications (N>20). What I'm going to do now
+    is keep the entire sample that we have, give each galaxy a "Class" based on
+    its vote fractions/Pfeatures/etc. Or based on its "gzclass"?  
+    '''
+
+    # --> Assign classes based on first couple letters in gzclass? 
+    # --> Assign "confidence" based on vote & pfeatures? 
+    filename = 'GZ2All_ancillary_morphology_urls.fits'
+    dat = Table.read(filename)
+    classlabel = []
+
+    for d in dat:
+        if 'E' in d['gz2class']:
+            classlabel.append(1)
+        elif 'S' in d['gz2class']:
+            classlabel.append(2)
+        else:
+            classlabel.append(3)
+
+    classlabel = np.array(classlabel)
+    stars = dat[np.where(classlabel==3)]
+    ells = dat[np.where(classlabel==1)]
+    disks = dat[np.where(classlabel==2)]
+
+    ells.write('GZ2All_ells.fits')
+    disks.write('GZ2All_disks.fits')
+    stars.write('GZ2All_stars.fits', overwrite=True)
+    pdb.set_trace()
 
     # Step 1: determine GZ2 class categories/select sample
     #filename = 'SDSSbig_GZ_matched_MAcut.fits'
