@@ -1,3 +1,17 @@
+# How to use galaxy.py
+
+Shouldn't even be called that! It measures galaxy morphology. 
+It requires the following: `clean.py`, `galaxy_plot.py`, `run_sextractor.py`, and `utils.py`
+It is NOT parallelized so if you don't run this in chunks it will literally take FOREVER.
+
+I should write a bash script which runs it in chunks FOR YOU... but I'm not going to do that just now.
+
+
+
+
+
+Old shit: 
+
 Various catalogs and what they contain:
 
 

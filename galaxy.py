@@ -62,10 +62,10 @@ class Galaxy(object):
         self.med, self.rms = self.background(image, segmap)
 
         # PETROSIAN RADIUS & FRIENDS
-        #self.Rp, self.Rp_SB, self.Rpflag = self.get_petro_ell(image)
-        self.Rp_c1, self.Rp_SB_c, self.Rpflag_c = self.get_petro_circ(image)
-        self.Rp_c2, self.Rpflag_c2 = self.get_petro_circ2(image)
-        '''
+        self.Rp, self.Rp_SB, self.Rpflag = self.get_petro_ell(image)
+        self.Rp_c, self.Rp_SB_c, self.Rpflag_c = self.get_petro_circ(image)
+        #self.Rp_c2, self.Rpflag_c2 = self.get_petro_circ2(image)
+        #'''
         if not np.isnan(self.Rp) and not np.isnan(self.Rp_c):
 
             # CREATE SOME APERTURES IN WHICH TO MEASURE LIGHT DISTRIBUTIONS
@@ -100,6 +100,8 @@ class Galaxy(object):
                                     self.get_m20(image, gell_ap, gcirc_ap)
 
         else:
+            print "something went wrong..."
+            pdb.set_trace()
             self.A, self.Ax, self.Ay = np.nan, self.x, self.y
             self.A_c, self.Ax_c, self.Ay_c = np.nan, self.x, self.y
 
@@ -109,7 +111,7 @@ class Galaxy(object):
             self.G_c, self.G2_c = np.nan, np.nan 
             self.M20 = self.M20_c = np.nan 
             self.Mx, self.My = self.x, self.y
-        '''
+        #'''
                 
     def __enter__(self):
         return self
@@ -714,23 +716,23 @@ class Galaxy(object):
         the_dict = self.__dict__
         r = re.compile(r"_.+")
         matching_keys = filter(r.match, the_dict.keys())
-        
+        #pdb.set_trace()
         for key in matching_keys:
             del the_dict[key]
 
         if init:
-            names = [k for k in the_dict.keys()]
+            keys = [k for k in the_dict.keys()]
             dtypes = []
-            for n in names:
-                if n in ['name']:
+            for k in keys:
+                if k in ['name']:
                     dtypes.append('S80')
-                elif n in ['cat', 'oflag', 'uflag','Rpflag','Rpflag_c','bflag']:
+                elif k in ['cat', 'oflag', 'uflag','Rpflag','Rpflag_c','bflag']:
                     dtypes.append('i')
-                elif n in ['objid']:
+                elif k in ['objid']:
                     dtypes.append('int64')
                 else: 
                     dtypes.append('f')
-            t = Table(names=names, dtype=dtypes)
+            t = Table(names=keys, dtype=dtypes)
             return t, the_dict
         else:
             return the_dict
