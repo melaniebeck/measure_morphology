@@ -367,7 +367,7 @@ class Galaxy(object):
 
         # create a square background image approx same size 
         # as area of aperture (we need to minimize calculations)
-        size = ceil(np.sqrt(ceil(aperture.area()))) 
+        size = int(ceil(np.sqrt(ceil(aperture.area()))))
         bkg_img = np.zeros((size, size))
         mask = np.where(bkg_img == 0)
 
