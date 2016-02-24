@@ -92,7 +92,6 @@ class Galaxy(object):
             self.r20_c, self.r50_c, self.r80_c, self.C_c = \
                 self.get_concentration_circ(image)
 
-
             [self.G, self.G_c] = self.get_gini1(image, [gell_ap, gcirc_ap])
             [self.G2, self.G2_c]= self.get_gini2(image)
 
@@ -140,7 +139,7 @@ class Galaxy(object):
         
     def get_petro_ell(self, image):
         r_flag = 0
-       
+    
         #'''
         # condition of np.log10(imgsize/constant) ensures that the maximum
         # radius will never exceed the size of the image
@@ -209,11 +208,11 @@ class Galaxy(object):
         # now we need to find the intersection of sb/<sb> with 0.2:
         # define a finer spacing of radii to interpolate onto
         self._rads = a[1:-1]
-        radii, ratios = utils.get_interp(self._rads, self._sb/self._avgsb)
+        radii, ratios = morph.get_interp(self._rads, self._sb/self._avgsb)
         self._interprads, self._interpvals = radii, ratios
         
         if not np.any(np.isnan(ratios)):
-            rp = utils.get_intersect(ratios, 0.2, radii, mono='dec')
+            rp = morph.get_intersect(ratios, 0.2, radii, mono='dec')
             
             if (rp > 0): 
                 # Determine Surface Brightness at 1 Rp
@@ -345,11 +344,11 @@ class Galaxy(object):
         # now we need to find the intersection of sb/<sb> with 0.2:
         # define a finer spacing of radii to interpolate onto
         rads = a[1:-1]
-        radii, ratios = utils.get_interp(rads, sb/avgsb)
+        radii, ratios = morph.get_interp(rads, sb/avgsb)
         interprads, interpvals = radii, ratios
         
         if not np.any(np.isnan(ratios)):
-            rp = utils.get_intersect(ratios, 0.2, radii, mono='dec')
+            rp = morph.get_intersect(ratios, 0.2, radii, mono='dec')
             
             if (rp > 0): 
                 # Determine Surface Brightness at 1 Rp
@@ -380,7 +379,7 @@ class Galaxy(object):
         # save the background image 
         if plot:
             bkg = fits.ImageHDU(data=bkg_img)
-            utils.checkdir(self._outdir+'asymimgs/')
+            morph.checkdir(self._outdir+'asymimgs/')
             bkg.writeto(self._outdir+'asymimgs/'+self.name+'_bkg.fits', 
                         clobber=True, output_verify='silentfix')          
 
@@ -424,7 +423,7 @@ class Galaxy(object):
             # These hold intermediary asym & denominator values
             ga, dd = [], []
 
-            deltas, points = utils.generate_deltas([self.xc, self.yc], .3,delta)
+            deltas, points = morph.generate_deltas([self.xc, self.yc], .3,delta)
 
             for d, p in zip(deltas, points):
  
@@ -464,7 +463,7 @@ class Galaxy(object):
                     rot = sp_interp.rotate(shift, 180.)
                     resid = shift - rot
                     res = fits.ImageHDU(data=resid)
-                    utils.checkdir(self._outdir+'asymimgs/')
+                    morph.checkdir(self._outdir+'asymimgs/')
                     res.writeto(self._outdir+'asymimgs/'+self.name+'_res.fits', 
                                 clobber=True, output_verify='silentfix')
 
@@ -512,12 +511,12 @@ class Galaxy(object):
         ratio = cum_sum/tot_flux
         
         # now we need to find the intersection of ratio with 0.2 and 0.8
-        interp_radii, interp_ratio = utils.get_interp(a[1:-1], ratio)
+        interp_radii, interp_ratio = morph.get_interp(a[1:-1], ratio)
         
         if not np.any(np.isnan(interp_ratio)):
-            r20 = utils.get_intersect(interp_ratio, 0.2, interp_radii)
-            r50 = utils.get_intersect(interp_ratio, 0.5, interp_radii)
-            r80 = utils.get_intersect(interp_ratio, 0.8, interp_radii)
+            r20 = morph.get_intersect(interp_ratio, 0.2, interp_radii)
+            r50 = morph.get_intersect(interp_ratio, 0.5, interp_radii)
+            r80 = morph.get_intersect(interp_ratio, 0.8, interp_radii)
         else:
             r20 = r50 = r80 = np.nan
             
@@ -549,12 +548,12 @@ class Galaxy(object):
         ratio = cum_sum/tot_flux
 
         # now we need to find the intersection of ratio with 0.2 and 0.8
-        interp_radii, interp_ratio = utils.get_interp(radii[1:-1], ratio)
+        interp_radii, interp_ratio = morph.get_interp(radii[1:-1], ratio)
 
         if not np.any(np.isnan(interp_ratio)):
-            r20 = utils.get_intersect(interp_ratio, 0.2, interp_radii)
-            r50 = utils.get_intersect(interp_ratio, 0.5, interp_radii)
-            r80 = utils.get_intersect(interp_ratio, 0.8, interp_radii)
+            r20 = morph.get_intersect(interp_ratio, 0.2, interp_radii)
+            r50 = morph.get_intersect(interp_ratio, 0.5, interp_radii)
+            r80 = morph.get_intersect(interp_ratio, 0.8, interp_radii)
         else:
             r20 = r50 = r80 = np.nan
             
@@ -588,9 +587,9 @@ class Galaxy(object):
         # This method is based on Lotz 2004
         for rp, rp_sb in zip([self.Rp, self.Rp_c], [self.Rp_SB, self.Rp_SB_c]):
             
-            utils.checkdir(self._outdir+'masks/')
+            morph.checkdir(self._outdir+'masks/')
             outname = self._outdir+'masks/'+self.name
-            mask = utils.get_SB_Mask(rp, rp_sb, image, outname)*image
+            mask = morph.get_SB_Mask(rp, rp_sb, image, outname)*image
 
             if isinstance(mask, int):
                 return np.nan
@@ -636,11 +635,11 @@ class Galaxy(object):
                 # distance of each pixel from current "center"
                 dist_grid = (i - x2)**2 + (j - y2)**2
 
-                #ell_ap = utils.EllipticalAperture((i,j), self.Rp,
+                #ell_ap = morph.EllipticalAperture((i,j), self.Rp,
                 #                            self.Rp/self.e, self.theta, image)
                 #mask_ell = ell_ap.aper*image
                 
-                #circ_ap = utils.CircularAperture((i, j), self.Rp_c, image)
+                #circ_ap = morph.CircularAperture((i, j), self.Rp_c, image)
                 #mask_circ = circ_ap.aper*image
 
                 # calculate Mtot
@@ -668,10 +667,10 @@ class Galaxy(object):
             
             # re-create a 1*Rp aperture centered on those coordinates
             if idx == 0:
-                m20_aper = utils.EllipticalAperture((xc, yc), self.Rp, 
+                m20_aper = morph.EllipticalAperture((xc, yc), self.Rp, 
                                             self.Rp/self.e, self.theta, image)
             else:
-                m20_aper = utils.CircularAperture((xc, yc), self.Rp_c, image)
+                m20_aper = morph.CircularAperture((xc, yc), self.Rp_c, image)
 
             # isolate the pixel flux within that aperture
             galpix = m20_aper.aper*image
@@ -764,8 +763,9 @@ def main():
     warnings.filterwarnings('ignore', message='Overwriting existing file .*',
                             module='pyfits')
 
+    #pdb.set_trace()
     # If the proper output directory doesn't exist, create it
-    utils.checkdir(args.outdir+'datacube/')
+    morph.checkdir(args.outdir+'datacube/')
 
     # The morphology catalog is built by going through each FITS image, 
     # cleaning it, processing it, measuring morphological parameters, and
@@ -804,7 +804,7 @@ def main():
         #if not os.path.isfile(filename):
         #print "File not found! Running SExtractor before proceeding."
         print "Cleaning ", os.path.basename(f)
-        flags = clean.clean_frame(f, args.outdir+'datacube/', sep=4, 
+        flags = morph.clean_frame(f, args.outdir+'datacube/', sep=4, 
                                   survey='SDSS')
 
         

@@ -54,7 +54,6 @@ def run_SE(image, section, cfg_filename='se_params_COSMOS.cfg',
         If section = 'SMOOTH', the parameters are identical to FAINT
         except with the addition of gaussian smoothing
     '''
-
     config = ConfigParser.ConfigParser()
     config.read(cfg_filename)
     options = config.options(section)
