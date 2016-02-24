@@ -150,7 +150,6 @@ def clean_frame(image, outdir, sep=17., survey='SDSS'):
                 outname+'_smooth_cat.fits']
     segnames = [outname+'_bright_seg.fits', outname+'_faint_seg.fits',
                 outname+'_smooth_seg.fits']
-    pdb.set_trace()
 
     # run SE in FAINT and BRIGHT modes
     if not run_sextractor.run_SE(image, 'BRIGHT', cfg_filename=configfile, 

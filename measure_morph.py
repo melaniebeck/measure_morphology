@@ -21,7 +21,7 @@ from photutils import aperture_photometry, EllipticalAnnulus, \
                               CircularAperture
 import morph
 
-class Galaxy(object):
+class Morphology(object):
 
     def __init__(self, hdulist, filename, flags, outdir):
 
@@ -813,7 +813,7 @@ def main():
             hdulist = fits.open(filename, memmap=True)
 
             # Measure galaxy morphologies
-            g = Galaxy(hdulist, filename, flags, args.outdir)
+            g = Morphology(hdulist, filename, flags, args.outdir)
 
             # Plot galaxy figures for quality control
             #if not np.isnan(g.Rp):
