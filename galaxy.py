@@ -6,7 +6,7 @@ from math import pi, ceil
 from collections import defaultdict
 from random import gauss
 
-import pyfits as fits
+import astropy.io.fits as fits
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -76,10 +76,10 @@ class Galaxy(object):
             circ_ap = CircularAperture((self.xc, self.yc), self.Rp_c)
 
             # get_gini requires apertures centered on galaxy center
-            gell_ap = utils.EllipticalAperture((self.x, self.y), self.Rp, 
+            gell_ap = morph.MyEllipticalAperture((self.x, self.y), self.Rp, 
                                             self.Rp/self.e, self.theta, image)
 
-            gcirc_ap = utils.CircularAperture((self.x,self.y), self.Rp_c, image)
+            gcirc_ap = morph.MyCircularAperture((self.x,self.y), self.Rp_c, image)
 
             self.stn = self.get_stn(gell_ap.aper*image)
 
@@ -187,8 +187,7 @@ class Galaxy(object):
             fit = np.polyfit(a[fitloc+1:-1], sb[fitloc::], deg=0)
             
             if fit > 0.:
-                newsb = np.concatenate((sb[0:fitloc], 
-                                        sb[fitloc::]-fit[0]), axis=1)
+                newsb = np.r_[sb[:fitloc], sb[fitloc::]-fit[0]]
                 subtract = sb_counts-newsb*sb_areas
                 newavgsb = (avgsb_counts - subtract)/avgsb_areas
                 self._sb = newsb
@@ -333,8 +332,7 @@ class Galaxy(object):
             fit = np.polyfit(a[fitloc+1:-1], sb[fitloc::], deg=0)
             
             if fit > 0.:
-                newsb = np.concatenate((sb[0:fitloc], 
-                                        sb[fitloc::]-fit[0]), axis=1)
+                newsb = np.r_[sb[:fitloc],sb[fitloc::]-fit[0]]
                 subtract = sb_counts-newsb*sb_areas
                 newavgsb = (avgsb_counts - subtract)/avgsb_areas
                 sb = newsb
@@ -667,10 +665,10 @@ class Galaxy(object):
             
             # re-create a 1*Rp aperture centered on those coordinates
             if idx == 0:
-                m20_aper = morph.EllipticalAperture((xc, yc), self.Rp, 
+                m20_aper = morph.MyEllipticalAperture((xc, yc), self.Rp, 
                                             self.Rp/self.e, self.theta, image)
             else:
-                m20_aper = morph.CircularAperture((xc, yc), self.Rp_c, image)
+                m20_aper = morph.MyCircularAperture((xc, yc), self.Rp_c, image)
 
             # isolate the pixel flux within that aperture
             galpix = m20_aper.aper*image
@@ -832,7 +830,9 @@ def main():
             
             # Close any remaining FITS files
             hdulist.close()
-            # 
+            
+            # Write the file after each galaxy (costly but don't want to lose
+            # data when my shit crashes, which it inevitably does
             t.write(args.catalog_name, overwrite=True)
             print counter+1," galaxies measured!"
             counter+=1

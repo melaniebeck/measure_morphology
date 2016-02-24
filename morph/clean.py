@@ -1,9 +1,9 @@
 #! usr/bin/env python
 
-import os
+import os, glob
 import string
 import numpy as  np
-import pyfits as fits
+import astropy.io.fits as fits
 from random import gauss
 import run_sextractor
 from utils import find_closest
@@ -73,15 +73,10 @@ def savedata(mode, hdr, galnumber, data=[], names=[]):
     return datacube
 
 def clean_directory(outdir):
-    if os.path.isfile(outdir+"*bright*.fits"):
-        os.system("rm -rf "+outdir+"*bright*.fits")
-
-    if os.path.isfile(outdir+"*faint*.fits"):
-        os.system("rm -rf "+outdir+"*faint*.fits")
-
-    if os.path.isfile(outdir+"*smooth*.fits"):
-        os.system("rm -rf "+outdir+"*smooth*.fits")
-
+    for desc in ['*bright*', '*faint*', '*smooth*']:
+        files = glob.glob(outdir+desc+".fits")
+        for f in files:
+            os.remove(f)
 
 def clean_frame(image, outdir, sep=17., survey='SDSS'):
     '''

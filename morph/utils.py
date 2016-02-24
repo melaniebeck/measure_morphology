@@ -2,7 +2,7 @@ import os
 import resource
 import string
 import numpy as np
-import pyfits as fits
+import astropy.io.fits as fits
 from astropy.table import Table
 from scipy.interpolate import interp1d
 from collections import OrderedDict
@@ -169,7 +169,7 @@ def get_SB_Mask(Rp, Rp_SB, image, outname):
         return mask
 
 
-class EllipticalAperture(object):
+class MyEllipticalAperture(object):
 
     def __init__(self, xycenter, a, b, theta, data):
         self.x, self.y = xycenter
@@ -236,7 +236,7 @@ class EllipticalAperture(object):
 
         return 0
 
-class CircularAperture(object):
+class MyCircularAperture(object):
 
     def __init__(self, xycenter, r, data):
         self.x, self.y = xycenter
