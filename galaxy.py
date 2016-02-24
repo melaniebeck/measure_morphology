@@ -239,11 +239,12 @@ class Galaxy(object):
         # minimize (ratio - 0.2)? Need an initial guess? 
 
         r0 = self.kron  #initial guess in pixels
-        r0 = 50
+        #r0 = 50
         eta = 0.2
         epsilon = 0.0001
         condition= True
         count = 1
+        position = [self.x, self.y]
 
         while condition: 
             annulus = CircularAnnulus(position, 0.8*r0, 1.25*r0)
@@ -262,21 +263,27 @@ class Galaxy(object):
             #print "ratio:", ratio[0]
             #print "diff:", diff
             
+            #pdb.set_trace()
             if np.abs(ratio-eta) < epsilon:
                 condition = False
                 break
 
+            print 'Before:', r0
+
             if diff < 0.:
                 r0 = .95*r0
+                print 'After:', r0
             else:
                 r0 = 1.05*r0
-
-            if r0 > image.shape[0]/2.:
-                rflag = 1
-                condition = False
-                break
+                print 'After:', r0
 
             count+=1
+            if count == 70:
+                pdb.set_trace()
+
+        if r0 > image.shape[0]/2.:
+            rflag = 1
+            #condition = False
         
         if r0 > 2*self.Rp_c1:
             pdb.set_trace()
@@ -284,7 +291,7 @@ class Galaxy(object):
         #print count
         return r0, rflag
 
-    def get_petro_circ1(self, image):
+    def get_petro_circ(self, image):
         r_flag = 0
 
         # condition of np.log10(imgsize/constant) ensures that the maximum
