@@ -1,30 +1,25 @@
 
-import re
-import glob
-import argparse
-import os
-import string
-import math
-import pdb
-import pyfits as fits
-import bisect
-import numpy as np
-import matplotlib.pyplot as plt
-import scipy.ndimage.interpolation as sp_interp
+import re, glob, os, string, pdb
+import argparse, warnings
+import math, bisect
 from math import pi, ceil
-from scipy.interpolate import interp1d
-from scipy.optimize import fsolve
-from astropy.table import Table
-from astropy.stats import sigma_clipped_stats
 from collections import defaultdict
 from random import gauss
+
+import pyfits as fits
+import numpy as np
+import matplotlib.pyplot as plt
+
+import scipy.ndimage.interpolation as sp_interp
+from scipy.interpolate import interp1d
+from scipy.optimize import fsolve
+
+from astropy.table import Table
+from astropy.stats import sigma_clipped_stats
 from photutils import aperture_photometry, EllipticalAnnulus, \
                               EllipticalAperture, CircularAnnulus, \
                               CircularAperture
-import utils
-import clean
-import galaxy_plot
-import warnings
+import morph
 
 class Galaxy(object):
 
