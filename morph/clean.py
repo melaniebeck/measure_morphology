@@ -196,15 +196,15 @@ def clean_frame(image, outdir, sep=17., survey='SDSS'):
 
     DIST = np.abs(Fdist - Bdist)
 
-    if (DIST < sep):
+    if (DIST <= sep):
         # FLAG 1: MOST COMMON CATEGORY --> CLEAN IN FAINT MODE
-        if (Bdist < sep) & (Fdist < sep):
+        if (Bdist <= sep) & (Fdist <= sep):
             #cln = clean_image(cln, bseg, bcat, BIndex, fseg)
             cln = clean_image(cln, fseg, fcat, FIndex, fseg)
             category, mode = 1, 'FAINT'
 
         # FLAG 2: CLEAN IN BRIGHT MODE & FLAG THESE!!
-        elif (Bdist < sep) & (Fdist > sep):
+        elif (Bdist <= sep) & (Fdist > sep):
             ''' There is only one obj in here:
             Two super bright galaxies super close together
             Seen as distinct objs in BRIGHT (but with crazy square edges)
@@ -218,7 +218,7 @@ def clean_frame(image, outdir, sep=17., survey='SDSS'):
             category, mode = 2, 'FAINT'
 
         # FLAG 3: CLEAN IN FAINT MODE
-        elif (Bdist > sep) & (Fdist < sep):
+        elif (Bdist > sep) & (Fdist <= sep):
             ''' There aren't many of these
             They're oddballs but most are well cleaned in FAINT
             '''
@@ -251,7 +251,7 @@ def clean_frame(image, outdir, sep=17., survey='SDSS'):
             
     else:
         # FLAG 5: TWO STAGE CLEANING - BRIGHT --> RUN SE AGAIN IN FAINT
-        if (Bdist < sep) & (Fdist > sep):
+        if (Bdist <= sep) & (Fdist > sep):
 
             cln = clean_image(cln, bseg, bcat, BIndex, fseg)
 
@@ -276,7 +276,7 @@ def clean_frame(image, outdir, sep=17., survey='SDSS'):
             category, mode = 5, 'FAINT2'
  
         # FLAG 6: CLEAN IN SMOOTH MODE
-        elif (Bdist > sep) & (Fdist < sep):
+        elif (Bdist > sep) & (Fdist <= sep):
             ''' These are mostly faint objects not detected in BRIGHT
             run SE in SMOOTH mode and then clean
             '''
@@ -298,7 +298,7 @@ def clean_frame(image, outdir, sep=17., survey='SDSS'):
             category, mode = 7, 'FAINT'
 
         # FLAG 8: 
-        elif  (Bdist < sep) & (Fdist < sep):
+        elif  (Bdist <= sep) & (Fdist <= sep):
             pdb.set_trace()
             cln = clean_image(cln, bseg, bcat, BIndex, fseg)
             category, mode = 8, 'BRIGHT'
