@@ -43,9 +43,12 @@ class Morphology(object):
         self.oflag, self.uflag, self.bflag = flags[1], flags[2], flags[3]
         self.name = os.path.basename(os.path.splitext(filename)[0])
 
-        # The last index will change when I'm running on the regular SDSS sample
-        self.objid = np.int64(os.path.splitext(\
-                    os.path.basename(filename))[0].split('_')[1])
+        #pdb.set_trace()
+        # The following line is only for SDSS cutouts specificy as I used 
+        # the DR7 OBJID as the image filename and wanted to preserve the 
+        # objid in the catalog
+        #self.objid = np.int64(os.path.splitext(\
+        #            os.path.basename(filename))[0].split('_')[1])
         self._outdir = outdir
 
 
@@ -99,7 +102,7 @@ class Morphology(object):
                                     self.get_m20(image, gell_ap, gcirc_ap)
 
         else:
-            print "something went wrong..."
+            print "Petrosian radius could not be calculated!!"
             pdb.set_trace()
             self.A, self.Ax, self.Ay = np.nan, self.x, self.y
             self.A_c, self.Ax_c, self.Ay_c = np.nan, self.x, self.y
@@ -745,16 +748,18 @@ class Morphology(object):
 def main():
     
     parser = argparse.ArgumentParser(description='Perform LLE/PCA/whatevs')
-    parser.add_argument('directory', type=str, 
+    parser.add_argument('-d', dest="directory", type=str, 
         help='Directory of fits images on which to run LLE.')
-    parser.add_argument('catalog_name', type=str,
+    parser.add_argument('-c', dest="catalog_name", type=str,
         help='Specify the desired name for output catalog.')
     parser.add_argument('--outdir', type=str, default='output/datacube/', 
         help='Specify the desired name for output directory.')
     args = parser.parse_args()
 
     # Select all FITS files in the given directory
-    fitsfiles = np.array(sorted(glob.glob(args.directory+'*.fits')))
+    fitsfiles = np.array(sorted(glob.glob(args.directory+'*band_5*.fits')))
+    #filename = "synthetic_image_0_band_5_camera_0_bg_0.fits"
+    #fitsfiles = np.array([filename])
     #fitsfiles = sorted(glob.glob(args.directory))
 
     # There are a lot of useless warnings that pop up -- suppress them!
@@ -792,6 +797,7 @@ def main():
     except:
         counter = 0
 
+    tt = Table(names=('category', 'oFlag', 'uFlag', 'bFlag'))
 
     # Now that we have our list of FITS to process...
     for idx, f in enumerate(fitsfiles): 
@@ -806,9 +812,12 @@ def main():
                                   survey='SDSS')
 
         
+        print flags
+        tt.add_row((flags[0], flags[1], flags[2], flags[3]))
+        """
         # check to see if SExtractor failed
         if np.any(np.array(flags)-9 < 0):
-
+        
             print "Running", os.path.basename(f)
             hdulist = fits.open(filename, memmap=True)
 
@@ -842,7 +851,9 @@ def main():
             #if (idx == 0) and (counter == 0):
             #t, gal_dict = g.table(init=True)
             #t.add_row(gal_dict)
+     """
 
+    tt.write('SEflags_subdir_000_band_5.fits')
     print "Morphological parameter catalog complete.\n"
     exit()  
 
