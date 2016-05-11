@@ -7,8 +7,10 @@ It is NOT parallelized so if you don't run this in chunks it will literally take
 
 I should write a bash script which runs it in chunks FOR YOU... but I'm not going to do that just now.
 
-I don't remember how to call it! Stupid.
+To run it: 
+    >>> python measure_morph.py directory_to_stamps/ desired_catalog_name --outdir desired_name_for_output_directory/
 
+You can already run `python measure_morph.py -h` to see some options which probably don't make any sense anymore. 
 
 
 
