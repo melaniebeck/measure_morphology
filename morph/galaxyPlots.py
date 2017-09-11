@@ -13,7 +13,6 @@ import pyfits as fits
 from photutils import EllipticalAperture, EllipticalAnnulus
 from skimage import measure
 
-import galaxy
 import pdb
 import utils
 
@@ -326,16 +325,23 @@ def m20_plot(gal, image):
     #plt.show()
     plt.close()
 
-def plot(galaxy, hdulist):
+
+#def main(galMorph, hdulist):
+
+def plot(galMorph, hdulist):
     try:
         clean_img = hdulist['UCLN'].data
     except:
         clean_img = hdulist['CLN'].data
 
-    utils.checkdir(galaxy._outdir+'figures/')
+    utils.checkdir(galMorph._outdir+'figures/')
 
-    petro_radius(galaxy, clean_img)
-    petro_SB(galaxy)
-    asym_plot(galaxy, clean_img)
-    conc_plot(galaxy, clean_img)
-    m20_plot(galaxy, clean_img)
+    petro_radius(galMorph, clean_img)
+    petro_SB(galMorph)
+    asym_plot(galMorph, clean_img)
+    conc_plot(galMorph, clean_img)
+    m20_plot(galMorph, clean_img)
+
+
+#if __name__ == "__main__":
+#    pyplot()
