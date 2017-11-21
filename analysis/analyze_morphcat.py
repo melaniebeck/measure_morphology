@@ -4,11 +4,26 @@ morphology catalogs I create with galaxy.py
 '''
 
 import numpy as np
-from astropy.table import Table, vstack
+from astropy.table import Table, vstack, join
 from collections import OrderedDict, defaultdict
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 import pdb 
+import pandas as pd
+
+import matplotlib as mpl
+mpl.rcParams.update({'font.size': 24, 
+                    'font.family': 'STIXGeneral', 
+                    'mathtext.fontset': 'stix',
+                    'xtick.labelsize':16,
+                    'ytick.labelsize':16,
+                    'xtick.major.width':2,
+                    'ytick.major.width':2,
+                    'axes.linewidth':2,
+                    'lines.linewidth':3,
+                    'legend.fontsize':18})
+
 
 def lotz_mergers(m20):
     return -0.14*m20+0.33
@@ -17,22 +32,24 @@ def lotz_separation(m20):
     return  0.14*m20+0.8
 
 def compare_parameters(dat, fout='mycat'):
-    
-    colors = 'black'
+    cm = plt.cm.get_cmap('viridis')
+    #fsmooth = "t01_smooth_or_features_a01_smooth_weighted_fraction"
+    fsmooth = "t01_smooth_or_features_a01_smooth_debiased"
+    colors = dat[fsmooth]
 
-    fig = plt.figure(figsize=(20,16))
+    fig = plt.figure(figsize=(8,8))
     gs = plt.GridSpec(4,4)
     gs.update(wspace=0.005, hspace=0.005)
 
     #'''
     ax10 = fig.add_subplot(gs[3,0])
-    ax10.scatter(dat['A'], dat['C'], color=colors, marker='.', alpha=0.25)
-    ax10.set_xlabel('A', fontsize=20)
-    ax10.set_ylabel('C', fontsize=20)
+    ax10.scatter(dat['A'], dat['C'], c=colors, marker='.', alpha=0.25, cmap=cm)
+    ax10.set_xlabel(r'$A$')
+    ax10.set_ylabel(r'$C$')
     ax10.set_ylim(0., 6.)
     ax10.set_xlim(0., .8)
-    ax10.set_xticks([0.2, 0.4, 0.6])
-    ax10.set_yticks([1,2,3,4])
+    ax10.set_xticks([0.1, 0.3, 0.5, 0.7])
+    ax10.set_yticks([1,2,3,4,5])
     #ax10.tick_params(axis='x', pad=8)
     #plt.text(0.5, 0.5, '10', fontsize=20, color='red', transform=ax10.transAxes)
     
@@ -40,30 +57,30 @@ def compare_parameters(dat, fout='mycat'):
     
     ax8 = fig.add_subplot(gs[3,1], sharey=ax10)
     plt.setp(ax8.get_yticklabels(), visible=False)
-    ax8.scatter(dat['G'], dat['C'], color=colors, marker='.', alpha=0.25)
-    ax8.set_xlabel('G', fontsize=20)
+    ax8.scatter(dat['G'], dat['C'], c=colors, marker='.', alpha=0.25, cmap=cm)
+    ax8.set_xlabel(r'$G$')
     #ax8.set_ylabel('C')
     ax8.set_xlim(0.2, 0.8)
     ax8.set_ylim(0., 6.)
-    ax8.set_xticks([0.4, 0.5, 0.6])
+    ax8.set_xticks([0.3, 0.5, 0.7])
     #plt.text(0.5, 0.5, '8', fontsize=20, color='red', transform=ax8.transAxes)
     
     ax9 = fig.add_subplot(gs[2,1], sharex=ax8)
     plt.setp(ax9.get_xticklabels(), visible=False)
-    ax9.scatter(dat['G'], dat['A'], color=colors, marker='.', alpha=0.25)
+    ax9.scatter(dat['G'], dat['A'], c=colors, marker='.', alpha=0.25, cmap=cm)
     #ax9.set_xlabel('G')
-    ax9.set_ylabel('A', fontsize=20)
+    ax9.set_ylabel(r'$A$')
     ax9.set_xlim(0.2, 0.8)
     ax9.set_ylim(0., .8)
-    ax9.set_yticks([0.2, 0.4, 0.6])
+    ax9.set_yticks([0.1, 0.3, 0.5, 0.7])
     #plt.text(0.5, 0.5, '9', fontsize=20, color='red', transform=ax9.transAxes)
     
     ################
     
     ax5 = fig.add_subplot(gs[3,2], sharey=ax10)
     plt.setp(ax5.get_yticklabels(), visible=False)
-    ax5.scatter(dat['M20'], dat['C'], color=colors, marker='.', alpha=0.25)
-    ax5.set_xlabel('M20', fontsize=20)
+    ax5.scatter(dat['M20'], dat['C'], c=colors, marker='.', alpha=0.25, cmap=cm)
+    ax5.set_xlabel(r'M$_{20}$')
     #ax5.set_ylabel('C')
     ax5.set_xlim(0., -3.5)
     ax5.set_ylim(0., 6.)
@@ -72,29 +89,29 @@ def compare_parameters(dat, fout='mycat'):
     
     ax6 = fig.add_subplot(gs[2,2], sharex=ax5, sharey=ax9)
     plt.setp((ax6.get_xticklabels(), ax6.get_yticklabels()), visible=False)
-    ax6.scatter(dat['M20'], dat['A'], color=colors, marker='.', alpha=0.25)
+    ax6.scatter(dat['M20'], dat['A'], c=colors, marker='.', alpha=0.25, cmap=cm)
     #ax6.set_xlabel('M20')
     #ax6.set_ylabel('A')
     ax6.set_xlim(0., -3.5)
-    ax6.set_ylim(0., .8)
+    ax6.set_ylim(0., .7)
     #plt.text(0.5, 0.5, '6', fontsize=20, color='red', transform=ax6.transAxes)
     
     ax7 = fig.add_subplot(gs[1,2], sharex=ax5)
     plt.setp(ax7.get_xticklabels(), visible=False)
-    ax7.scatter(dat['M20'], dat['G'], color=colors, marker='.', alpha=0.25)
+    ax7.scatter(dat['M20'], dat['G'], c=colors, marker='.', alpha=0.25, cmap=cm)
     #ax7.set_xlabel('M20')
-    ax7.set_ylabel('G', fontsize=20)
+    ax7.set_ylabel(r'$G$')
     ax7.set_xlim(0., -3.5)
     ax7.set_ylim(0.2, 0.8)
-    ax7.set_yticks([0.4, 0.5, 0.6])
+    ax7.set_yticks([0.3, 0.5, 0.7])
     #plt.text(0.5, 0.5, '7', fontsize=20, color='red', transform=ax7.transAxes)
     
     ################
     
     ax1 = fig.add_subplot(gs[3,3], sharey=ax10)
     plt.setp(ax1.get_yticklabels(), visible=False)
-    ax1.scatter(dat['elipt'], dat['C'], color=colors, marker='.', alpha=0.25)
-    ax1.set_xlabel('elipt', fontsize=20)
+    ax1.scatter(dat['elipt'], dat['C'], c=colors, marker='.', alpha=0.25, cmap=cm)
+    ax1.set_xlabel(r'$1-b/a$')
     #ax1.set_ylabel('C')
     ax1.set_ylim(0., 6.)
     ax1.set_xlim(0., .9)
@@ -103,7 +120,7 @@ def compare_parameters(dat, fout='mycat'):
     
     ax2 = fig.add_subplot(gs[2,3], sharex=ax1, sharey=ax9)
     plt.setp((ax2.get_xticklabels(), ax2.get_yticklabels()), visible=False)
-    ax2.scatter(dat['elipt'], dat['A'], color=colors, marker='.', alpha=0.25)
+    ax2.scatter(dat['elipt'], dat['A'], c=colors, marker='.', alpha=0.25, cmap=cm)
     #ax2.set_xlabel('elipt')
     #ax2.set_ylabel('A')
     ax2.set_ylim(0., .8)
@@ -112,7 +129,7 @@ def compare_parameters(dat, fout='mycat'):
     
     ax3 = fig.add_subplot(gs[1,3], sharex=ax1, sharey=ax7)
     plt.setp((ax3.get_xticklabels(),ax3.get_yticklabels()), visible=False)
-    ax3.scatter(dat['elipt'], dat['G'], color=colors, marker='.', alpha=0.25)
+    ax3.scatter(dat['elipt'], dat['G'], c=colors, marker='.', alpha=0.25, cmap=cm)
     #ax3.set_xlabel('elipt')
     #ax3.set_ylabel('G')
     ax3.set_xlim(0., .9)
@@ -121,16 +138,21 @@ def compare_parameters(dat, fout='mycat'):
     
     ax4 = fig.add_subplot(gs[0,3])
     plt.setp(ax4.get_xticklabels(), visible=False)
-    ax4.scatter(dat['elipt'], dat['M20'], color=colors, marker='.', alpha=0.25)
+    im = ax4.scatter(dat['elipt'], dat['M20'], c=colors, marker='.', alpha=0.25, cmap=cm)
     #ax4.set_xlabel('elipt')
-    ax4.set_ylabel('M20', fontsize=20)
+    ax4.set_ylabel(r'M$_{20}$')
     ax4.set_ylim(0., -3.5)
     ax4.set_xlim(0., .9)
     ax4.set_yticks([-2.5, -1.5, -0.5])
     #plt.text(0.5, 0.5, '4', fontsize=20, color='red', transform=ax4.transAxes)
 
+    # add colorbar
+    cbaxes = fig.add_axes([0.13, 0.87, 0.45, 0.02])
+    cbax = fig.colorbar(mappable=im, cax=cbaxes, orientation='horizontal')
+    cbax.ax.set_xlabel(r'$f_{\mathrm{smooth}}$')
+
     #gs.tight_layout(fig)
-    plt.savefig('morph_params_'+fout+'.png')
+    plt.savefig('morph_params_'+fout+'.png', bbox_inches='tight')
     plt.show()
     plt.close()
 
@@ -360,35 +382,55 @@ def gini_m20_compare(dat, fout):
     plt.close()
 
 def Rp_compare(dat, fout):
-    fig = plt.figure(figsize=(8,8))
+    fig = plt.figure(figsize=(8,5))
 
-    ax1 = fig.add_subplot(211)
-    lims = [0., 100., 0., 75.]
-    grid, extent, aspect = density(dat['Rp']*.396, dat['petrorad_i'], lims, 25)
+    ax1 = fig.add_subplot(111)
+    lims = [0., 80., 0., 75.]
+    grid, extent, aspect = density(dat['Rp_corr']*.396, dat['petrorad_i'], lims, 25)
     im = ax1.imshow(grid.T, origin='low', extent=lims, 
                     interpolation='nearest', norm=LogNorm(vmin=1.,vmax=15000.),
                     aspect=aspect, cmap=plt.get_cmap('Reds'))
-    cbar = fig.colorbar(im)
+
+    #divider = make_axes_locatable(ax1)
+    #cax = divider.append_axes("right", size="5%", pad=0.1)
+    cbar = plt.colorbar(im, fraction=0.035, pad=0.04)
+    cbar.set_label("Galaxy number density", fontsize=18)
+
     ax1.plot([0,100], [0,100], 'k--',lw=1.5)
-    ax1.set_xlabel('My PetroRad (elliptical) [arcsec]')
-    ax1.set_ylabel('SDSS Petrosian Radius [arcsec]')
-    ax1.set_xlim(0,100.)
+    ax1.set_xlabel(r'R$_p$ [arcsec]')
+    ax1.set_ylabel(r'SDSS R$_p$ [arcsec]')
+    ax1.set_xlim(0,80.)
     ax1.set_ylim(0,75.)
 
+    """
+    lowrp = dat[dat['Rp_corr']*0.396<=20]
+    coeff = np.polyfit(lowrp['Rp_corr']*.396, lowrp['petrorad_i'], deg=1)
+    x = np.linspace(0, 20, 100)
+    y = coeff[0]*x + coeff[1]
+    print y
+    pdb.set_trace()
+    """
+
+    """
     ax2 = fig.add_subplot(212)
     lims = [0., 100., 0., 75.]
-    grid, extent, aspect = density(dat['Rp_c']*.396, dat['petrorad_i'], lims, 25)
+    grid, extent, aspect = density(dat['Rp_old']*.396, dat['petrorad_i'], lims, 25)
     im = ax2.imshow(grid.T, origin='low', extent=lims, 
                     interpolation='nearest', norm=LogNorm(vmin=1.,vmax=15000.),
-                    aspect=aspect, cmap=plt.get_cmap('Blues'))
+                    aspect=aspect, cmap=plt.get_cmap('Reds'))
     cbar = fig.colorbar(im)
     ax2.plot([0,100], [0,100], 'k--',lw=1.5, label='1-to-1')
-    ax2.set_xlabel('My PetroRad (circular)[arcsec]')
-    ax2.set_ylabel('SDSS Petrosian Radius [arcsec]')
+    #ax2.plot(x, y, ls='-.', color='r', label='linear fit')
+    #ax2.text(67, 10, r'$y={0:.2f}x+{1:.2f}$'.format(coeff[0], coeff[1]), color='r')
+
+    ax2.set_xlabel(r'My R$_p$ (elliptical: old) [arcsec]')
+    ax2.set_ylabel(r'SDSS R$_p$ (circular) [arcsec]')
     ax2.set_xlim(0,100.)
     ax2.set_ylim(0,75.)
-    
-    plt.savefig('PetroRad_compare_'+fout+'.png')
+    ax2.legend(loc='upper left', frameon=False)    
+	"""
+
+    plt.savefig('PetroRad_compare_'+fout+'.png', bbox_inches='tight')
     plt.show()
     plt.close()
 
@@ -509,24 +551,45 @@ def remove_flags(dat):
     
 def main():
 
-    #data1 = Table.read('GZ2Photoz_ancillary_morphology_masses.fits')
-    data2 = Table.read('GZ2Specz_ancillary_morphology_masses.fits')
+    #dat = Table.read("GZ2All_ancillary_morphology_urls.fits")
+    #dat = dat[dat.colnames[:100]]
+    #dat['objid'] = dat['dr7objid']
 
-    #dat = vstack((data1, data2))
-    new_data2 = remove_flags(data2)
+    dat = Table.read("GZmain_petrorads_highzgal.csv")
+    dat['objid'] = dat['objID']
 
-    dat = new_data2
+    #morphold = Table.read("../SDSSmorphology_catalogs/92415/SDSSmorphology_full_catalog_92415.fits")
+    #morphold = morphold[['objid', 'Rp', 'Rp_c']]
+    #morphold['Rp_old'] = morphold['Rp']
 
-    fout = 'fullGZ2_noflags_density'
+    morphnew = Table.read("../SDSSmorphology_full_catalog_110817.csv")
+    #morphnew['Rp_new'] = morphnew['Rp']
+
+
+    clean_mask = ((morphnew['bflag']==0) & (morphnew['oflag']==0) & \
+                 (morphnew['uflag']==0) & (morphnew['Rpflag']==0))    
+    morphclean = morphnew[clean_mask]
+    #newdat = Table.read('../measure_morph_bin4_goodapertures_newRpdef.csv')
+
+    fulldat = join(morphclean, dat, keys='objid')
+
+    idx = np.random.choice(range(len(fulldat)), size=5000, replace=False)
+    sample = fulldat[idx]
+
+    fout = 'random_sample_fsmooth_colored_clean'
     #compare_parameters_density(dat, fout='fullGZ2_ell_noflags_density')
 
-    #compare_parameters(dat, fout='fullGZ2_ell_noflags')
+    #compare_parameters(sample, fout=fout)
+
     #elliptical_circular_compare_SDSS(dat, fout)
-    #Rp_compare(dat, fout)
+    
+    Rp_compare(fulldat, fout='cleanSample_forThesis')
+    
     #distributions(dat, fout)
-    gini_m20_compare(dat, fout)
+    #gini_m20_compare(dat, fout)
     #z_mag_rp(dat, fout)
 
+    pdb.set_trace()
 
 
 if __name__ == '__main__':

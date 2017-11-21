@@ -26,6 +26,11 @@ class GalaxyMorphology(object):
     def __init__(self, hdulist, filename, flags, outdir):
 
         """
+        FOR THESIS: Going to embed the SDSS petrosian radius in the flags
+                    key and use that to compute the morphologies [use petrorad_i]
+        """
+
+        #"""
         # initialize fits image & catalog data
         try:
             image = hdulist['UCLN'].data
@@ -33,29 +38,28 @@ class GalaxyMorphology(object):
         except:
             image = hdulist['CLN'].data
             catinfo = hdulist['CLN'].header['SECATIDX']
-        """
+        #"""
 
         image = hdulist[0].data
 
 
-        #cat = hdulist['CAT'].data[catinfo]
-        #segmap = hdulist['FSEG'].data
+        cat = hdulist['CAT'].data[catinfo]
+        segmap = hdulist['FSEG'].data
 
         self.xc, self.yc = image.shape[0]/2.,image.shape[1]/2.
         
         # FLAGS & NAMING ATTRIBUTES
-        #self.cat = flags[0]
-        #self.oflag, self.uflag, self.bflag = flags[1], flags[2], flags[3]
+        self.cat = flags[0]
+        self.oflag, self.uflag, self.bflag = flags[1], flags[2], flags[3]
         self.name = os.path.basename(os.path.splitext(filename)[0])
 
         # The following line is only for SDSS cutouts specificy as I used 
         # the DR7 OBJID as the image filename and wanted to preserve the 
         # objid in the catalog
-        #self.objid = np.int64(os.path.splitext(\
-        #            os.path.basename(filename))[0].split('_')[1])
-        self._outdir = outdir
+        self.objid = np.int64(os.path.splitext(os.path.basename(filename))[0].split('_')[1])
+        self.outdir = outdir
 
-        """
+        #""
         # SEXTRACTOR ATTRIBUTES        
         self.e = cat['ELONGATION']
         self.x, self.y = cat['X_IMAGE'], cat['Y_IMAGE']
@@ -64,59 +68,55 @@ class GalaxyMorphology(object):
         self.theta = cat['THETA_IMAGE']*pi/180. # in radians?
         self.ra, self.dec = cat['ALPHA_J2000'], cat['DELTA_J2000']
         self.elipt = cat['ELLIPTICITY'] 
-        """
+        #"""
 
         # BACKGROUND VALUES
-        #self.med, self.rms = self.background(image, segmap)
+        self.med, self.rms = self.background(image, segmap)
 
         # PETROSIAN RADIUS & FRIENDS
-        self.Rp, self.Rp_SB, self.Rpflag = self.get_petro_ell(image)
-        self.Rp_c, self.Rp_SB_c, self.Rpflag_c = self.get_petro_circ(image)
+        self.Rp, self.Rp_SB, self.Rpflag = self.get_petro_ell2(image)
+        #self.Rp_c, self.Rp_SB_c, self.Rpflag_c = self.get_petro_circ(image)
         #self.Rp_c2, self.Rpflag_c2 = self.get_petro_circ2(image)
         #'''
-        if not np.isnan(self.Rp) and not np.isnan(self.Rp_c):
-
+        
+        if not np.isnan(self.Rp):# and not np.isnan(self.Rp_c):
             # CREATE SOME APERTURES IN WHICH TO MEASURE LIGHT DISTRIBUTIONS
             # get_asym requires apertures centered on image center
             ell_ap = EllipticalAperture((self.xc, self.yc), self.Rp, 
-                                          self.Rp/self.e, self.theta)
+                                         self.Rp/self.e, self.theta)
 
-            circ_ap = CircularAperture((self.xc, self.yc), self.Rp_c)
+            #circ_ap = CircularAperture((self.xc, self.yc), self.Rp_c)
 
             # get_gini requires apertures centered on galaxy center
             gell_ap = morph.MyEllipticalAperture((self.x, self.y), self.Rp, 
-                                            self.Rp/self.e, self.theta, image)
+                                            	  self.Rp/self.e, self.theta, image)
 
-            gcirc_ap = morph.MyCircularAperture((self.x,self.y), self.Rp_c, image)
+            #gcirc_ap = morph.MyCircularAperture((self.x,self.y), self.Rp_c, image)
 
             self.stn = self.get_stn(gell_ap.aper*image)
 
             # MEASURE MORPHOLOGIES----------------------------------------
             self.A, self.Ax, self.Ay = self.get_asymmetry(image, ell_ap)
-            self.A_c, self.Ax_c, self.Ay_c = self.get_asymmetry(image, circ_ap)
+            #self.A_c, self.Ax_c, self.Ay_c = self.get_asymmetry(image, circ_ap)
 
-            self.r20, self.r50, self.r80, self.C = \
-                self.get_concentration_ell(image)
-            self.r20_c, self.r50_c, self.r80_c, self.C_c = \
-                self.get_concentration_circ(image)
+            self.r20, self.r50, self.r80, self.C = self.get_concentration_ell(image)
+            #self.r20_c, self.r50_c, self.r80_c, self.C_c = self.get_concentration_circ(image)
 
-            [self.G, self.G_c] = self.get_gini1(image, [gell_ap, gcirc_ap])
-            [self.G2, self.G2_c]= self.get_gini2(image)
+            [self.G] = self.get_gini1(image, [gell_ap])
+            #[self.G2, self.G2_c]= self.get_gini2(image)
 
-            [self.M20, self.M20_c], self.Mx, self.My = \
-                                    self.get_m20(image, gell_ap, gcirc_ap)
+            [self.M20], self.Mx, self.My = self.get_m20(image, gell_ap)
 
         else:
             print "Petrosian radius could not be calculated!!"
-            pdb.set_trace()
             self.A, self.Ax, self.Ay = np.nan, self.x, self.y
-            self.A_c, self.Ax_c, self.Ay_c = np.nan, self.x, self.y
+            #self.A_c, self.Ax_c, self.Ay_c = np.nan, self.x, self.y
 
             self.r20 = self.r50 = self.r80 = self.C = np.nan
-            self.r20_c = self.r50_c = self.r80_c = self.C_c = np.nan
+            #self.r20_c = self.r50_c = self.r80_c = self.C_c = np.nan
             self.G, self.G2 = np.nan, np.nan 
-            self.G_c, self.G2_c = np.nan, np.nan 
-            self.M20 = self.M20_c = np.nan 
+            self.G_c = np.nan #, self.G2_c, np.nan 
+            self.M20 = np.nan #= self.M20_c 
             self.Mx, self.My = self.x, self.y
         #'''
                 
@@ -158,7 +158,7 @@ class GalaxyMorphology(object):
         position = [self.x, self.y]
 	
         annuli = np.hstack([EllipticalAnnulus(position, a[idx], a[idx+1], 
-                                              b[idx], self.theta) \
+                                              b[idx+1], self.theta) \
                             for idx, radius in enumerate(a[:-1])])
 
         counts = np.hstack([aperture_photometry(image, an, method='exact')\
@@ -166,6 +166,7 @@ class GalaxyMorphology(object):
         
         areas = [an.area() for an in annuli]
         
+        # Next mistake: I never account for the counts in the center!!!
         sb_counts = np.array([c+counts[i+1] for i, c in \
                               enumerate(counts[:-1])])
         avgsb_counts = np.cumsum(counts)[:-1]
@@ -180,10 +181,10 @@ class GalaxyMorphology(object):
         
         # Mean SBs within r
         avgsb = self._avgsb = avgsb_counts/avgsb_areas
-        
+
         # Petrosian Ratio -- find rp at which this ratio = 0.2
         self._ratio = sb/avgsb
-        
+
         # test for monotonicity of sb/<sb> beyond self.a to determine
         # if contaminated by nearly uncleaned source
         tail = np.where(a[1:-1] >= .8*self.a)
@@ -235,64 +236,84 @@ class GalaxyMorphology(object):
             rp, rp_sb, r_flag = np.nan, np.nan, 2
             return rp, rp_sb, r_flag
 
-
-    def get_petro_circ2(self, image):
-        rflag = 0
-        # Trying to match Rp from SDSS
-        # minimize (ratio - 0.2)? Need an initial guess? 
-
-        r0 = self.kron  #initial guess in pixels
-        #r0 = 50
-        eta = 0.2
-        epsilon = 0.0001
-        condition= True
-        count = 1
-        position = [self.x, self.y]
-
-        while condition: 
-            annulus = CircularAnnulus(position, 0.8*r0, 1.25*r0)
-            
-            an_counts = aperture_photometry(image, annulus, 
-                                            method='exact')['aperture_sum']
-            an_area = annulus.area()
-            
-            aperture = CircularAperture(position, r0)
-            ap_counts = aperture_photometry(image, aperture, 
-                                            method='exact')['aperture_sum']
-            ap_area = aperture.area()
-            
-            ratio = (an_counts/an_area)/(ap_counts/ap_area)
-            diff = (ratio-eta)[0]
-            #print "ratio:", ratio[0]
-            #print "diff:", diff
-            
-            #pdb.set_trace()
-            if np.abs(ratio-eta) < epsilon:
-                condition = False
-                break
-
-            print 'Before:', r0
-
-            if diff < 0.:
-                r0 = .95*r0
-                print 'After:', r0
-            else:
-                r0 = 1.05*r0
-                print 'After:', r0
-
-            count+=1
-            if count == 70:
-                pdb.set_trace()
-
-        if r0 > image.shape[0]/2.:
-            rflag = 1
-            #condition = False
+    def get_petro_ell2(self, image):
+        print "Measuring Petrosian radius via elliptical apertures..."
+        r_flag = 0
+    
+        # condition of np.log10(imgsize/constant) ensures that the maximum
+        # radius will never exceed the size of the image
+        a = 10*np.logspace(-1.0, np.log10(np.min([self.xc,self.yc])/10.),num=20)
+        b = a/self.e
         
-        if r0 > 2*self.Rp_c1:
-            pdb.set_trace()
+        position = [self.x, self.y]
+	
+        #pdb.set_trace()
+        ##### Azimuthally averaged flux AT R (numerator)
+        at_r_annuli = np.hstack([EllipticalAnnulus(position, 0.8*r, 1.25*r, 
+													1.25*b[idx], self.theta)\
+								for idx, r in enumerate(a)])
+        
+        at_r_counts = np.hstack([aperture_photometry(image, an, method='exact')\
+                            	for an in at_r_annuli])['aperture_sum'] 
+   
+        at_r_areas = [an.area() for an in at_r_annuli]
 
-        #print count
-        return r0, rflag
+        ##### Azimuthally averaged flux IN R (denominator)
+        in_r_apers = np.hstack([EllipticalAperture(position, a[idx], b[idx], self.theta)\
+								for idx, r in enumerate(a)])
+
+        in_r_counts = np.hstack([aperture_photometry(image, an, method='exact')\
+                            	for an in in_r_apers])['aperture_sum'] 
+
+        in_r_areas = [an.area() for an in in_r_apers]
+
+	
+        at_r_sb = self._sb = at_r_counts/at_r_areas
+        in_r_sb = self._avgsb = in_r_counts/in_r_areas
+
+        self._ratio = at_r_sb/in_r_sb  
+
+        # test for monotonicity of sb/<sb> beyond self.a to determine
+        # if contaminated by nearly uncleaned source
+        tail = np.where(a >= .8*self.a)
+        dx = np.diff(self._ratio[tail])
+        loc = bisect.bisect(dx, 0.)
+        
+        if loc: 
+            fitloc = tail[0][loc]
+            fit = np.polyfit(a[fitloc:], at_r_sb[fitloc:], deg=0)
+            
+            if fit > 0.:
+                newsb = np.r_[at_r_sb[:fitloc], at_r_sb[fitloc:]-fit[0]]
+                subtract = at_r_counts-newsb*at_r_areas
+                newavgsb = (in_r_counts - subtract)/in_r_areas
+                self._sb = newsb
+                self._avgsb = newavgsb
+                self._newratio = newsb/newavgsb
+                
+        # now we need to find the intersection of sb/<sb> with 0.2:
+        # define a finer spacing of radii to interpolate onto
+        self._rads = a
+        radii, ratios = morph.get_interp(self._rads, self._sb/self._avgsb)
+        self._interprads, self._interpvals = radii, ratios
+        
+        if not np.any(np.isnan(ratios)):
+            rp = morph.get_intersect(ratios, 0.2, radii, mono='dec')
+            
+            if (rp > 0): 
+                # Determine Surface Brightness at 1 Rp
+                newsb = interp1d(self._rads, self._sb)
+                rp_sb = newsb(rp)
+                if rp_sb < 0:
+                    rp_sb = np.nan
+            else:
+                rp_sb, r_flag = np.nan, 1
+            return rp, rp_sb, r_flag
+        else:
+            print "Petrosian interpolation failed!"
+            rp, rp_sb, r_flag = np.nan, np.nan, 2
+            return rp, rp_sb, r_flag
+
 
     def get_petro_circ(self, image):
         r_flag = 0
@@ -300,65 +321,57 @@ class GalaxyMorphology(object):
         # condition of np.log10(imgsize/constant) ensures that the maximum
         # radius will never exceed the size of the image
         a = 10*np.logspace(-1.0, np.log10(np.min([self.xc,self.yc])/10.),num=20)
-        b = a/self.e
         position = [self.x, self.y]
         
-        annuli = np.hstack([CircularAnnulus(position, a[idx], a[idx+1]) \
-                            for idx, radius in enumerate(a[:-1])])
+        # Azimuthally averaged flux AT R (numerator)
+        at_r_annuli = np.hstack([CircularAnnulus(position, 0.8*r, 1.25*r) for r in a])
         
-        counts = np.hstack([aperture_photometry(image, an, method='exact')\
-                            for an in annuli])['aperture_sum']
-        
-        areas = [an.area() for an in annuli]
-        
-        sb_counts = np.array([c+counts[i+1] for i, c in \
-                              enumerate(counts[:-1])])
-        avgsb_counts = np.cumsum(counts)[:-1]
-        
-        sb_areas = np.array([ar+areas[i+1] for i, ar in \
-                             enumerate(areas[:-1])])
-        
-        avgsb_areas = np.cumsum(areas)[:-1]
-        
-        # Local SBs averaged over an annulus at r (around r in log space)
-        sb = sb_counts/sb_areas
-        
-        # Mean SBs within r
-        avgsb = avgsb_counts/avgsb_areas
-        
-        # Petrosian Ratio -- find rp at which this ratio = 0.2
-        ratio = sb/avgsb
+        at_r_counts = np.hstack([aperture_photometry(image, an, method='exact')\
+                            	for an in at_r_annuli])['aperture_sum']    
+        at_r_areas = [an.area() for an in at_r_annuli]
+
+        # Azimuthally averaged flux IN R (denominator)
+        in_r_apers = np.hstack([CircularAperture(position, r) for r in a])
+        in_r_counts = np.hstack([aperture_photometry(image, an, method='exact')\
+                            	for an in in_r_apers])['aperture_sum'] 
+        in_r_areas = [an.area() for an in in_r_apers]
+
+	
+        at_r_sb = self._sb = at_r_counts/at_r_areas
+        in_r_sb = self._avgsb = in_r_counts/in_r_areas
+
+        self._ratio = at_r_sb/in_r_sb    
         
         # test for monotonicity of sb/<sb> beyond self.a to determine
         # if contaminated by nearly uncleaned source
-        tail = np.where(a[1:-1] >= .8*self.a)
-        dx = np.diff(ratio[tail])
+        tail = np.where(a >= .8*self.a)
+        dx = np.diff(self._ratio[tail])
         loc = bisect.bisect(dx, 0.)
         
         if loc: 
             fitloc = tail[0][loc]
-            fit = np.polyfit(a[fitloc+1:-1], sb[fitloc::], deg=0)
+            fit = np.polyfit(a[fitloc:], at_r_sb[fitloc:], deg=0)
             
             if fit > 0.:
-                newsb = np.r_[sb[:fitloc],sb[fitloc::]-fit[0]]
-                subtract = sb_counts-newsb*sb_areas
-                newavgsb = (avgsb_counts - subtract)/avgsb_areas
-                sb = newsb
-                avgsb = newavgsb
-                newratio = newsb/newavgsb
+                newsb = np.r_[at_r_sb[:fitloc], at_r_sb[fitloc:]-fit[0]]
+                subtract = at_r_counts-newsb*at_r_areas
+                newavgsb = (in_r_counts - subtract)/in_r_areas
+                self._sb = newsb
+                self._avg = newavgsb
+                self._newratio = newsb/newavgsb
 
         # now we need to find the intersection of sb/<sb> with 0.2:
         # define a finer spacing of radii to interpolate onto
-        rads = a[1:-1]
-        radii, ratios = morph.get_interp(rads, sb/avgsb)
-        interprads, interpvals = radii, ratios
+        self._rads = a
+        radii, ratios = morph.get_interp(self._rads, self._sb/self._avgsb)
+        self._interprads, self._interpvals = radii, ratios
         
         if not np.any(np.isnan(ratios)):
             rp = morph.get_intersect(ratios, 0.2, radii, mono='dec')
             
             if (rp > 0): 
                 # Determine Surface Brightness at 1 Rp
-                newsb = interp1d(rads, sb)
+                newsb = interp1d(self._rads, self._sb)
                 rp_sb = newsb(rp)
                 if rp_sb < 0:
                     rp_sb = np.nan
@@ -385,8 +398,8 @@ class GalaxyMorphology(object):
         # save the background image 
         if plot:
             bkg = fits.ImageHDU(data=bkg_img)
-            morph.checkdir(self._outdir+'asymimgs/')
-            bkg.writeto(self._outdir+'asymimgs/'+self.name+'_bkg.fits', 
+            morph.checkdir(self.outdir+'asymimgs/')
+            bkg.writeto(self.outdir+'/asymimgs/'+self.name+'_bkg.fits', 
                         clobber=True, output_verify='silentfix')          
 
 
@@ -406,7 +419,7 @@ class GalaxyMorphology(object):
         bkgasym = np.min(ba)*aperture.area()/(bkg_img.shape[0]*bkg_img.shape[1])
         return bkgasym
         
-    def get_asymmetry(self, image, aper, save_residual=False):
+    def get_asymmetry(self, image, aper, save_residual=True):
 
         '''
         1. make a smaller image of the galaxy -> 2*petrosian rad
@@ -429,7 +442,7 @@ class GalaxyMorphology(object):
             # These hold intermediary asym & denominator values
             ga, dd = [], []
 
-            deltas, points = morph.generate_deltas([self.xc, self.yc], .3,delta)
+            deltas, points = morph.generate_deltas([self.xc, self.yc], .3, delta)
 
             for d, p in zip(deltas, points):
  
@@ -469,8 +482,8 @@ class GalaxyMorphology(object):
                     rot = sp_interp.rotate(shift, 180.)
                     resid = shift - rot
                     res = fits.ImageHDU(data=resid)
-                    morph.checkdir(self._outdir+'asymimgs/')
-                    res.writeto(self._outdir+'asymimgs/'+self.name+'_res.fits', 
+                    morph.checkdir(self.outdir+'asymimgs/')
+                    res.writeto(self.outdir+'/asymimgs/'+self.name+'_res.fits', 
                                 clobber=True, output_verify='silentfix')
 
 
@@ -478,8 +491,12 @@ class GalaxyMorphology(object):
 
             else:
                 minloc = np.where(ga == np.min(ga))[0]
-                delta = deltas[minloc[0]]
-                prior_points = list(points)
+                # What if ga NEVER equals min(ga)??!!
+                if len(minloc) > 0:
+                    delta = deltas[minloc[0]]
+                    prior_points = list(points)
+                else: 
+                    return np.nan, self.x, self.y
 
 
     def get_concentration_ell(self, image):
@@ -502,7 +519,7 @@ class GalaxyMorphology(object):
         position = [self.Ax, self.Ay]
 
         annuli = np.hstack([EllipticalAnnulus(position, a[idx], a[idx+1],
-                                              b[idx], self.theta) \
+                                              b[idx+1], self.theta) \
                                 for idx, radius in enumerate(a[:-1])])
         counts = np.hstack([aperture_photometry(image, an, method='exact') \
                             for an in annuli])['aperture_sum']
@@ -531,7 +548,7 @@ class GalaxyMorphology(object):
         return r20, r50, r80, conc
 
     def get_concentration_circ(self, image):
-        print "calculating Concentration..."
+        #print "calculating Concentration..."
 
         radii = 10*np.logspace(-1.0, np.log10(np.min([self.xc, self.yc])/10.), 
                                num=20)
@@ -586,15 +603,15 @@ class GalaxyMorphology(object):
         return ginis
 
     def get_gini2(self, image):
-        print "calculating Gini(2)..."
+        #print "calculating Gini(2)..."
         ginis = []
         
         # Mask 2: galaxy pixels defined as those with flux >= SB at 1 petro rad
         # This method is based on Lotz 2004
         for rp, rp_sb in zip([self.Rp, self.Rp_c], [self.Rp_SB, self.Rp_SB_c]):
             
-            morph.checkdir(self._outdir+'masks/')
-            outname = self._outdir+'masks/'+self.name
+            morph.checkdir(self.outdir+'masks/')
+            outname = self.outdir+'masks/'+self.name
             mask = morph.get_SB_Mask(rp, rp_sb, image, outname)*image
 
             if isinstance(mask, int):
@@ -610,7 +627,7 @@ class GalaxyMorphology(object):
 
         return ginis
         
-    def get_m20(self, image, ell_aper, circ_aper):
+    def get_m20(self, image, ell_aper): #, circ_aper
 
         print "Calculating M20..."
 
@@ -627,11 +644,11 @@ class GalaxyMorphology(object):
 
         # create aperture masks
         mask_ell = ell_aper.aper*image
-        mask_circ = circ_aper.aper*image
+        #mask_circ = circ_aper.aper*image
 
         # create 2d array to store mtot values
         mtots_ell = np.zeros_like(image, dtype='float32')
-        mtots_circ = np.zeros_like(image, dtype='float32')
+        #mtots_circ = np.zeros_like(image, dtype='float32')
 
         # calculate mtot at every pixel in our 'box'
         for i in range(mxrange[0], mxrange[1]):
@@ -651,13 +668,14 @@ class GalaxyMorphology(object):
                 # calculate Mtot
                 try:
                     mtots_ell[i,j] = np.sum(mask_ell*dist_grid)
-                    mtots_circ[i,j] = np.sum(mask_circ*dist_grid)
+                    #mtots_circ[i,j] = np.sum(mask_circ*dist_grid)
                 except:
+                    print "a failure in M20 has occured"
                     pdb.set_trace()
 
         M20s = []
 
-        for idx, mtots in enumerate([mtots_ell, mtots_circ]):
+        for idx, mtots in enumerate([mtots_ell]): #, mtots_circ
 
             # set all the zeros to nans so that we can find the true min
             mtots[np.where(mtots == 0)] = np.nan
@@ -668,15 +686,26 @@ class GalaxyMorphology(object):
             # find the coordinates of that minimum
             xc, yc = np.where(mtots == Mtot)
 
+            if len(xc) > 1:
+                xc, yc = np.array([xc[0]]), np.array([yc[0]])
+            elif len(xc) == 0:
+                M20s.append(np.nan)
+                return M20s, np.nan, np.nan
+
             # re-create the distance grid corresponding to those coordinates
             grid = (xc - x2)**2 + (yc - y2)**2
             
             # re-create a 1*Rp aperture centered on those coordinates
             if idx == 0:
-                m20_aper = morph.MyEllipticalAperture((xc, yc), self.Rp, 
-                                            self.Rp/self.e, self.theta, image)
+                try:
+                    m20_aper = morph.MyEllipticalAperture((xc, yc), self.Rp, 
+                                                self.Rp/self.e, self.theta, image)
+                except:
+                    m20_aper = morph.MyEllipticalAperture((xc[0], yc[0]), self.Rp, 
+                                                self.Rp/self.e, self.theta, image)                    
             else:
-                m20_aper = morph.MyCircularAperture((xc, yc), self.Rp_c, image)
+                #m20_aper = morph.MyCircularAperture((xc, yc), self.Rp_c, image)
+                pass
 
             # isolate the pixel flux within that aperture
             galpix = m20_aper.aper*image
@@ -703,14 +732,14 @@ class GalaxyMorphology(object):
 
                 M20 = np.log10(np.sum(m20_galpix*m20_distpix)/Mtot)
 
-                self._Mlevel1 = np.min(m20_galpix)
+                self.Mlevel1 = np.min(m20_galpix)
                 
                 M20s.append(M20)
                 #return M20, xc[0], yc[0]
 
             # if NO pixels satisfy the above condition, set M to NAN
             else:
-                self._Mlevel1 = np.nan
+                self.Mlevel1 = np.nan
                 M20s.append(np.nan)
                 #return np.nan, self.x, self.y
 
@@ -722,7 +751,7 @@ class GalaxyMorphology(object):
         the_dict = self.__dict__
         r = re.compile(r"_.+")
         matching_keys = filter(r.match, the_dict.keys())
-        #pdb.set_trace()
+
         for key in matching_keys:
             del the_dict[key]
 
@@ -745,4 +774,82 @@ class GalaxyMorphology(object):
 
     def __exit__(self, type, value, traceback):
         self.stream.close()
+
+
+"""
+    def get_petro_circ2(self, image):
+        rflag = 0
+        # Trying to match Rp from SDSS
+        # minimize (ratio - 0.2)? Need an initial guess? 
+
+        r0 = self.kron  #initial guess in pixels
+        #r0 = 50
+        eta = 0.2
+        epsilon = 0.0001
+        condition= True
+        count = 1
+        position = [self.x, self.y]
+
+        while condition: 
+            annulus = CircularAnnulus(position, 0.8*r0, 1.25*r0)
+            
+            an_counts = aperture_photometry(image, annulus, 
+                                            method='exact')['aperture_sum']
+            an_area = annulus.area()
+            
+            aperture = CircularAperture(position, r0)
+            ap_counts = aperture_photometry(image, aperture, 
+                                            method='exact')['aperture_sum']
+            ap_area = aperture.area()
+            
+            ratio = (an_counts/an_area)/(ap_counts/ap_area)
+            diff = (ratio-eta)[0]
+            #print "ratio:", ratio[0]
+            #print "diff:", diff
+            
+            #pdb.set_trace()
+            if np.abs(ratio-eta) < epsilon:
+                condition = False
+                break
+
+            else:
+                r0 = 1.05*r0
+                print 'After:', r0
+
+            count+=1
+            if count == 70:
+                pdb.set_trace()
+
+        if r0 > image.shape[0]/2.:
+            rflag = 1
+            #condition = False
+        
+        if r0 > 2*self.Rp_c1:
+            pdb.set_trace()
+
+        #print count
+        return r0, rflag            
+		print 'Before:', r0
+
+            if diff < 0.:
+                r0 = .95*r0
+                print 'After:', r0
+            else:
+                r0 = 1.05*r0
+                print 'After:', r0
+
+            count+=1
+            if count == 70:
+                pdb.set_trace()
+
+        if r0 > image.shape[0]/2.:
+            rflag = 1
+            #condition = False
+        
+        if r0 > 2*self.Rp_c1:
+            pdb.set_trace()
+
+        #print count
+        return r0, rflag
+"""
 

@@ -11,6 +11,7 @@ import matplotlib.patches as mpatches
 import numpy as np
 import pyfits as fits
 from photutils import EllipticalAperture, EllipticalAnnulus
+from astropy.visualization import ZScaleInterval
 from skimage import measure
 
 import pdb
@@ -51,7 +52,7 @@ def petro_radius(gal, image):
 
     plt.title('1 Petrosian Radius') 
     gs.tight_layout(fig)
-    plt.savefig(gal._outdir+'figures/'+gal.name+'_RpAper.png')
+    plt.savefig(gal.outdir+'figures/'+gal.name+'_RpAper.png')
 
     plt.close()
 
@@ -134,12 +135,12 @@ def petro_SB(gal):
     #ax2.legend()
 
     gs.tight_layout(fig)
-    plt.savefig(gal._outdir+'figures/'+gal.name+'_SBprofile.png')
+    plt.savefig(gal.outdir+'figures/'+gal.name+'_SBprofile.png')
 
     #plt.show()
     plt.close()
     
-    #plt.show()
+
 
 def petro_SB2(gal):
     '''
@@ -190,140 +191,120 @@ def petro_SB2(gal):
     plt.close()
     
 
-def asym_plot(gal, image):
-    shape = [image.shape[0]/2., image.shape[1]/2.]
-    size = 2*gal.Rp
-
-    aper = EllipticalAperture((gal.Ax, gal.Ay), gal.Rp, gal.Rp/gal.e, 
+def asym_plot(gal, image, ax=None):
+	shape = [image.shape[0]/2., image.shape[1]/2.]
+	size = 2*gal.Rp
+	
+	aper = EllipticalAperture((gal.Ax, gal.Ay), gal.Rp, gal.Rp/gal.e, 
                               gal.theta)
 
-    # read in residual figure created during asymmetry calculation
-    residual = fits.getdata(gal._outdir+'asymimgs/'+gal.name+'_res.fits')
+	# read in residual figure created during asymmetry calculation
+	residual = fits.getdata('../'+gal.outdir+'asymimgs/'+gal.name+'_res.fits')
    
-    hist, bins = np.histogram(residual[shape[0]-size:shape[0]+size, 
-                                       shape[1]-size:shape[1]+size])
-    '''
-    pdb.set_trace()
-    plt.bar(bins, hist, width=np.mean(np.diff(bins)))
-    plt.show()
-    pdb.set_trace()
-    '''
+	#hist, bins = np.histogram(residual[shape[0]-size:shape[0]+size, 
+    #                                   shape[1]-size:shape[1]+size])
+    
+	if not ax:
+		fig = plt.figure(figsize=(8,8))
+		gs = plt.GridSpec(3,3)
+		ax = fig.add_subplot(gs[:,:])
+		plt.setp(ax, xlim=(shape[0]-size, shape[0]+size),
+                 ylim=(shape[1]-size, shape[1]+size))
+		plt.rc('font', family='serif')
 
-    font = {'fontname':'Helvetica'}
-    fig = plt.figure(figsize=(8,8))
-    gs = plt.GridSpec(3,3)
-    ax = fig.add_subplot(gs[:,:])
-    plt.setp(ax, xlim=(shape[0]-size, shape[0]+size),
-             ylim=(shape[1]-size, shape[1]+size))
-    plt.rc('font', family='serif')
+	else:
+		interval = ZScaleInterval()
+		imgplot = ax.imshow(interval(residual), cmap='gray_r', origin='center')
 
-    imgplot = ax.imshow(residual, cmap='gray_r', origin='center')
-    imgplot.set_clim(bins[0], bins[-1])
-    ax.plot(gal.Ax, gal.Ay, 'b+', mew=2, ms=20)
-    aper.plot(lw=2)
-    ax.xaxis.set_major_formatter(plt.NullFormatter())
-    ax.yaxis.set_major_formatter(plt.NullFormatter())
-    ax.text(.05, .05, 'A = %1.3f'%gal.A, fontsize=30, color='w', 
-            transform=ax.transAxes)
-    gs.tight_layout(fig)
-    plt.savefig(gal._outdir+'figures/'+gal.name+'_asym.png')
+		ax.plot(gal.Ax, gal.Ay, 'r+', mew=.5, ms=10)
+		aper.plot(lw=1)
+		ax.xaxis.set_major_formatter(plt.NullFormatter())
+		ax.yaxis.set_major_formatter(plt.NullFormatter())
+		ax.text(.05, .05, 'A = %1.3f'%gal.A, fontsize=18, color='yellow', 
+            	transform=ax.transAxes)
 
-    #plt.show()   
-    plt.close()
+	if not ax:	
+		gs.tight_layout(fig)
+		plt.savefig(gal.outdir+'figures/'+gal.name+'_asym.png')
+		#plt.show()   
+		plt.close()
 
-def conc_plot(gal, image):
-    shape = [image.shape[0]/2., image.shape[1]/2.]
-    size = 1.5*gal.Rp
+def conc_plot(gal, image, ax=None):
 
-    fig = plt.figure(figsize=(8,8))
-    gs = plt.GridSpec(3,3)
-    ax = fig.add_subplot(gs[:,:])
-    plt.setp(ax, xlim=(shape[0]-size, shape[0]+size),
-             ylim=(shape[1]-size, shape[1]+size))
+	if not ax:
+		fig = plt.figure(figsize=(8,8))
+		gs = plt.GridSpec(3,3)
+		ax = fig.add_subplot(gs[:,:])
 
-    imgplot = ax.imshow(image, cmap='gray_r')
-    imgplot.set_clim(gal.med-.5*gal.rms, gal.med+10*gal.rms)
-    patches = [mpatches.Circle((gal.Ax, gal.Ay), gal.r20, fill=None,
-                               color='black', lw=2), 
-               mpatches.Circle((gal.Ax, gal.Ay), gal.r80, fill=None,
-                               color='black', lw=2)]
-    for patch in patches:
-        ax.add_patch(patch)
-    ax.text(.05, .05, 'C = %1.3f'%gal.C, fontsize=20, color='k', 
-            transform=ax.transAxes)
+	else:
+		interval = ZScaleInterval()
+		ax.imshow(interval(image), cmap='Greys_r', interpolation='nearest', origin='lower')
 
-    gs.tight_layout(fig)
-    plt.savefig(gal._outdir+'figures/'+gal.name+'_conc.png')
 
-    #plt.show()
-    plt.close()
+		apr20 = utils.MyEllipticalAperture((gal.Ax, gal.Ay), 
+                                   		   	gal.r20, gal.r20/gal.e, 
+                                   		   	gal.theta, image)
 
-def m20_plot(gal, image):
-    '''
-    Plot the 2 different methods for calculating M20:
-    1. Galaxy pixels defined by 1 petrosian radius mask
-    2. Galaxy pixels defined by SB cut
-    '''
-    aperture = utils.EllipticalAperture((gal.Mx, gal.My), 
-                                         gal.Rp, gal.Rp/gal.e, 
-                                         gal.theta, image)
-    mask1 = aperture.aper*image
+		apr80 = utils.MyEllipticalAperture((gal.Ax, gal.Ay), 
+                                   		   	gal.r80, gal.r80/gal.e, 
+                                   		   	gal.theta, image)
 
-    contours1 = measure.find_contours(mask1, gal._Mlevel1)
+		aptot = utils.MyEllipticalAperture((gal.Ax, gal.Ay), 
+                                   		   	1.5*gal.Rp, 1.5*gal.Rp/gal.e, 
+                                   		   	gal.theta, image)
+
+		apr20.plot(linewidth=1, color='black')
+		apr80.plot(linewidth=1, color='k')
+		aptot.plot(linestyle='--', color='k')
+
+		ax.text(.05, .05, 'C = %1.3f'%gal.C, fontsize=18, 
+				color='yellow', 
+            	transform=ax.transAxes)
+		ax.xaxis.set_major_formatter(plt.NullFormatter())
+		ax.yaxis.set_major_formatter(plt.NullFormatter())
+
+	if not ax:
+		gs.tight_layout(fig)
+		plt.savefig(gal.outdir+'figures/'+gal.name+'_conc.png')
+		#plt.show()
+		plt.close()
+
+def m20_plot(gal, image, ax=None):
+	aperture = utils.MyEllipticalAperture((gal.xc, gal.yc), 
+                                   		   gal.Rp, gal.Rp/gal.e, 
+                                   		   gal.theta, image)
+	mask1 = aperture.aper*image
+	contours1 = measure.find_contours(mask1, gal.Mlevel1)
 
     #seg = fits.getdata('output/gini/'+gal.name+'_mask.fits')
     #contours3 = measure.find_contours(seg, gal.Rp_SB)
     
-    shape = [image.shape[0]/2., image.shape[1]/2.]
-    size = 2*gal.Rp
-    
-    fig = plt.figure(figsize=(10,6))
-    gs = plt.GridSpec(3,3)
-    
-    ax1 = fig.add_subplot(gs[:,:])
-    plt.setp(ax1, xlim=(shape[0]-size, shape[0]+size),
-             ylim=(shape[1]-size, shape[1]+size))
+	if not ax:
+		fig = plt.figure(figsize=(10,6))
+		gs = plt.GridSpec(3,3)
+		ax = fig.add_subplot(gs[:,:])
+	else:
+		interval = ZScaleInterval()
+		ax.imshow(interval(image), cmap='Greys_r', origin='lower', interpolation='nearest')
 
-    imgplot = ax1.imshow(image, cmap='gray_r', origin='center')
-    imgplot.set_clim(gal.Rp_SB, gal.Rp_SB+10*gal.Rp_SB)
-    for n, contour in enumerate(contours1):
-        ax1.plot(contour[:,1], contour[:,0], color='blue', linewidth=2)
-    aperture.plot(linewidth=2, color='black')
-    ax1.plot(gal.Mx, gal.My, 'r+', mew=2, ms=20)
-    ax1.text(.05, .05, 'M = %s'%"{0:.3f}".format(gal.M20), fontsize=20, 
-             color='k', transform=ax1.transAxes)
-    ax1.text(.05, .12, 'G = %s'%"{0:.3f}".format(gal.G), fontsize=20, 
-             color='k', transform=ax1.transAxes)
-    ax1.xaxis.set_major_formatter(plt.NullFormatter())
-    ax1.yaxis.set_major_formatter(plt.NullFormatter())
-    ax1.set_title('M20: Elliptical Aperture')
+		for n, contour in enumerate(contours1):
+			ax.plot(contour[:,1], contour[:,0], color='blue', linewidth=2)
+    	
+		aperture.plot(linewidth=1, color='black')
+		ax.plot(gal.Mx, gal.My, 'r+', mew=.5, ms=10)
+		ax.text(.05, .05, r"M$_{20} = $"+"{0:.2f}".format(gal.M20), fontsize=18, 
+             	color='yellow', transform=ax.transAxes)
+		ax.text(.05, .15, r"$G = ${0:.2f}".format(gal.G), fontsize=18, 
+             	color='yellow', transform=ax.transAxes)
+		ax.xaxis.set_major_formatter(plt.NullFormatter())
+		ax.yaxis.set_major_formatter(plt.NullFormatter())
 
-    '''
-    if not isinstance(mask2, int):
-        ax2 = fig.add_subplot(gs[:,2:4])
-        plt.setp(ax2, xlim=(shape[0]-size, shape[0]+size),
-                 ylim=(shape[1]-size, shape[1]+size))
-        imgplot = ax2.imshow(image, cmap='gray_r', origin='center')
-        imgplot.set_clim(gal.Rp_SB, gal.Rp_SB+10*gal.Rp_SB)
-        for n, contour in enumerate(contours2):
-            ax2.plot(contour[:,1], contour[:,0], color='blue', linewidth=2)
-        for n, contour in enumerate(contours3):
-            ax2.plot(contour[:,1], contour[:,0], color='black', linewidth=2)
-        ax2.plot(gal.Mcx2, gal.Mcy2, 'r+', mew=2, ms=20)
-        ax2.text(.05, .05, 'M = %s'%"{0:.3f}".format(gal.M2), fontsize=20, 
-                 color='k', transform=ax2.transAxes)
-        ax2.text(.05, .12, 'G = %s'%"{0:.3f}".format(gal.G2), fontsize=20, 
-                 color='k', transform=ax2.transAxes)
-        ax2.xaxis.set_major_formatter(plt.NullFormatter())
-        ax2.yaxis.set_major_formatter(plt.NullFormatter())
-        ax2.set_title('M20: SB @ 1Rp on Gaussian-smoothed Image')
-    #'''
-    gs.tight_layout(fig)
-
-    plt.savefig(gal._outdir+'figures/'+gal.name+'_M20.png')
-
-    #plt.show()
-    plt.close()
+	if not ax:
+		plt.savefig(gal.outdir+'figures/'+gal.name+'_M20.png')
+		#plt.show()
+		plt.close()
+	else:
+		return ax
 
 
 #def main(galMorph, hdulist):
@@ -334,7 +315,7 @@ def plot(galMorph, hdulist):
     except:
         clean_img = hdulist['CLN'].data
 
-    utils.checkdir(galMorph._outdir+'figures/')
+    utils.checkdir(galMorph.outdir+'figures/')
 
     petro_radius(galMorph, clean_img)
     petro_SB(galMorph)
@@ -343,5 +324,13 @@ def plot(galMorph, hdulist):
     m20_plot(galMorph, clean_img)
 
 
+def main():
+
+	df = pd.read_csv("gz2sample.csv")
+	
+
+
 #if __name__ == "__main__":
 #    pyplot()
+
+    #gs.tight_layout(fig)
