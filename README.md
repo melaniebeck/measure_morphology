@@ -32,8 +32,50 @@ To run `measure_morph.py`: `python measure_morph.py directory_to_stamps/ desired
 You can already run `python measure_morph.py -h` to see some options which probably don't make any sense anymore. 
 
 
+### Morphology catalog descripion
 
-
+'A': asymmetry
+'Ax','Ay': asymmetry center
+'C': concentration index
+'G': gini coefficient
+'G2': gini coefficient measured by using a SB mask (do not trust)
+'G_c': gini coefficient measured using CIRCULAR aperture
+'M20': M20
+'Mlevel1': minimum pixel value defining brightest 20% of pixels
+'Mx', 'My': M20 center
+'Rp': Petrosian radius (elliptical aperture -- correct this time!)
+'r20',
+'r50', 
+'r80', 
+'Rp_SB': surface brightness as 1 Rp
+'Rpflag': >0 indicates error in Rp measurement
+'a': SExtractor semi major axis
+'b': Sextractor semi minor axis
+'theta': SExtractor position angle of ellipse
+'e': SExtractor ellongation
+'elipt':SExtractor ellipticity
+'kron': SExtractor kron radius
+'name': name of image datacube, of form "f_[SDSSid]_4Rp.fits"
+'objid': SDSS object ID
+'outdir': directory for all output files
+'dec', 'ra': SExtractor coordinates 
+'med': Median of background pixels as determined by SExtractor segmaps
+'rms': RMS of background pixels as determined by SExtractor segmaps 
+'stn': standard dev of background pixels as determined by SExtractor segmaps
+'x','y': SDSS galaxy center
+'xc', 'yc': rounded galaxy center
+'Rp_corr': same as Rp (this is so that when matched with other catalogs it has a distinct column name for comparison with the uncorrected measurements)
+'C_corr': same as C
+'A_corr': same as A
+'G_corr': same as G
+'M20_corr': same as M20
+'cat': "cleaning" category -- description in `clean.py`; not used for anything
+'oflag': cleaning flag indicating image was over cleaned
+'bflag': cleaning flag indicating... i forgot 
+'uflag': cleaning flag indicating under cleaning -- None of the cleaning flags are very good
+'SE_diff': difference between SDSS galaxy center and SExtractor's center
+'A_diff': difference between SDSS galaxy center and asymmetry center
+'M_diff': difference between SDSS galaxy center and M20 center
 
 
 
