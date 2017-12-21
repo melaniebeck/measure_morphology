@@ -92,12 +92,31 @@ def petro_SB(gal):
     Include the interpolation
     '''
 
-    sb = gal._sb
-    avgsb = gal._avgsb
-    radii = gal._rads
-    interp_v = gal._interpvals
-    interp_r = gal._interprads
-    
+    try:
+        sb = gal._sb
+        avgsb = gal._avgsb
+        radii = gal._rads
+        interp_v = gal._interpvals
+        interp_r = gal._interprads
+        ratio = gal._ratio
+
+        try:
+            newratio = gal._newratio
+        except:
+            pass
+    except:
+        sb = gal['sb']
+        avgsb = gal['avgsb']
+        radii = gal['rads']
+        interp_v = gal['interpVals']
+        interp_r = gal['interpRads'] 
+        ratio = gal['ratio'] 
+
+        try:
+            newratio = gal['newratio']
+        except:
+            pass
+
     xlims = [np.min(radii), np.max(radii)]
 
     fig = plt.figure(figsize=(9,7))
@@ -119,11 +138,11 @@ def petro_SB(gal):
     ax1.set_ylabel(r'$\mu$(R)', fontsize=16)
 
     try:
-        ax2.semilogx(radii, gal._newratio, 'bo')
+        ax2.semilogx(radii, newratio, 'bo')
     except:
         pass
         
-    ax2.semilogx(radii, gal._ratio, 'ro', label='SB/<SB>')
+    ax2.semilogx(radii, ratio, 'ro', label='SB/<SB>')
     #ax2.errorbar(radii, sb/avgsb, yerr=gal._ratio_err, fmt=None)
     #ax2.semilogx(interp_r, interp_v, 'k', label='Interpolation')
     ax2.hlines(0.2, 1., np.max(radii), linestyle='--')

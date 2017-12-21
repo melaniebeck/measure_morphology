@@ -5,6 +5,7 @@ import math, bisect
 from math import pi, ceil
 from collections import defaultdict
 from random import gauss
+import cPickle
 
 import astropy.io.fits as fits
 import numpy as np
@@ -58,6 +59,7 @@ class GalaxyMorphology(object):
         # objid in the catalog
         self.objid = np.int64(os.path.splitext(os.path.basename(filename))[0].split('_')[1])
         self.outdir = outdir
+        self.filename = filename
 
         #""
         # SEXTRACTOR ATTRIBUTES        
@@ -77,8 +79,8 @@ class GalaxyMorphology(object):
         self.Rp, self.Rp_SB, self.Rpflag = self.get_petro_ell2(image)
         #self.Rp_c, self.Rp_SB_c, self.Rpflag_c = self.get_petro_circ(image)
         #self.Rp_c2, self.Rpflag_c2 = self.get_petro_circ2(image)
-        #'''
         
+        """
         if not np.isnan(self.Rp):# and not np.isnan(self.Rp_c):
             # CREATE SOME APERTURES IN WHICH TO MEASURE LIGHT DISTRIBUTIONS
             # get_asym requires apertures centered on image center
@@ -118,7 +120,7 @@ class GalaxyMorphology(object):
             self.G_c = np.nan #, self.G2_c, np.nan 
             self.M20 = np.nan #= self.M20_c 
             self.Mx, self.My = self.x, self.y
-        #'''
+        #"""
                 
     def __enter__(self):
         return self
@@ -239,6 +241,7 @@ class GalaxyMorphology(object):
     def get_petro_ell2(self, image):
         print "Measuring Petrosian radius via elliptical apertures..."
         r_flag = 0
+        save = True
     
         # condition of np.log10(imgsize/constant) ensures that the maximum
         # radius will never exceed the size of the image
@@ -297,6 +300,28 @@ class GalaxyMorphology(object):
         radii, ratios = morph.get_interp(self._rads, self._sb/self._avgsb)
         self._interprads, self._interpvals = radii, ratios
         
+        if save:
+            sb_profile = {
+                "sb":self._sb,
+                "avgsb":self._avgsb,
+                "rads":self._rads,
+                "interpVals":self._interpvals,
+                "interpRads":self._interprads,
+                "ratio":self._ratio
+            }
+
+            try:
+                sb_profile['sb'] = newsb
+                sb_profile['avgsb'] = newavgsb
+                sb_profile["newratio"] = self._newratio
+            except:
+                pass
+
+            outdir = string.join(self.filename.split('/')[:3],'/')
+            F = open(outdir+'/sb_profile_{}.pkl'.format(self.objid), 'wb')
+            cPickle.dump(sb_profile, F)
+            F.close()
+
         if not np.any(np.isnan(ratios)):
             rp = morph.get_intersect(ratios, 0.2, radii, mono='dec')
             

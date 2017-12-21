@@ -16,8 +16,8 @@ import matplotlib as mpl
 mpl.rcParams.update({'font.size': 24, 
                     'font.family': 'STIXGeneral', 
                     'mathtext.fontset': 'stix',
-                    'xtick.labelsize':16,
-                    'ytick.labelsize':16,
+                    'xtick.labelsize':18,
+                    'ytick.labelsize':18,
                     'xtick.major.width':2,
                     'ytick.major.width':2,
                     'axes.linewidth':2,
@@ -382,25 +382,25 @@ def gini_m20_compare(dat, fout):
     plt.close()
 
 def Rp_compare(dat, fout):
-    fig = plt.figure(figsize=(8,5))
+    fig = plt.figure(figsize=(6,6))
 
     ax1 = fig.add_subplot(111)
-    lims = [0., 80., 0., 75.]
+    lims = [0., 80., 0., 60.]
     grid, extent, aspect = density(dat['Rp_corr']*.396, dat['petrorad_i'], lims, 25)
     im = ax1.imshow(grid.T, origin='low', extent=lims, 
                     interpolation='nearest', norm=LogNorm(vmin=1.,vmax=15000.),
-                    aspect=aspect, cmap=plt.get_cmap('Reds'))
+                    aspect=1./aspect, cmap=plt.get_cmap('Reds'))
 
     #divider = make_axes_locatable(ax1)
     #cax = divider.append_axes("right", size="5%", pad=0.1)
-    cbar = plt.colorbar(im, fraction=0.035, pad=0.04)
-    cbar.set_label("Galaxy number density", fontsize=18)
+    #cbar = plt.colorbar(im, fraction=0.035, pad=0.04)
+    #cbar.set_label("Galaxy number density", fontsize=18)
 
     ax1.plot([0,100], [0,100], 'k--',lw=1.5)
     ax1.set_xlabel(r'R$_p$ [arcsec]')
     ax1.set_ylabel(r'SDSS R$_p$ [arcsec]')
-    ax1.set_xlim(0,80.)
-    ax1.set_ylim(0,75.)
+    ax1.set_xlim(lims[0],lims[1])
+    ax1.set_ylim(lims[2],lims[3])
 
     """
     lowrp = dat[dat['Rp_corr']*0.396<=20]
@@ -555,8 +555,8 @@ def main():
     #dat = dat[dat.colnames[:100]]
     #dat['objid'] = dat['dr7objid']
 
-    dat = Table.read("GZmain_petrorads_highzgal.csv")
-    dat['objid'] = dat['objID']
+    #dat = Table.read("GZmain_petrorads_highzgal.csv")
+    #dat['objid'] = dat['objID']
 
     #morphold = Table.read("../SDSSmorphology_catalogs/92415/SDSSmorphology_full_catalog_92415.fits")
     #morphold = morphold[['objid', 'Rp', 'Rp_c']]
@@ -565,6 +565,22 @@ def main():
     morphnew = Table.read("../SDSSmorphology_full_catalog_110817.csv")
     #morphnew['Rp_new'] = morphnew['Rp']
 
+    latexTable = morphnew[['objid', 'ra', 'dec','Rp_corr','C_corr','A_corr','G_corr','M20_corr','e','oflag']]
+    
+    latexTable['ra'].format = "{0:.5f}"
+    latexTable['dec'].format= "{0:.5f}"
+    latexTable['Rp_corr'] = latexTable['Rp_corr']*.396
+    latexTable['Rp_corr'].format = "{0:.3f}"
+    latexTable['C_corr'].format = "{0:.3f}"
+    latexTable['A_corr'].format = "{0:.3f}"
+    latexTable['G_corr'].format = "{0:.3f}"
+    latexTable['M20_corr'].format = "{0:.3f}"
+    latexTable['e'].format = "{0:.3f}"
+
+
+    latexTable_sample = latexTable[:20]
+    latexTable_sample.write("morph_table_for_thesis.tex",format='latex')
+    pdb.set_trace()
 
     clean_mask = ((morphnew['bflag']==0) & (morphnew['oflag']==0) & \
                  (morphnew['uflag']==0) & (morphnew['Rpflag']==0))    
